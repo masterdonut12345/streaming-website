@@ -5,7 +5,38 @@
     <title>Today's Games</title>
     <style>
         body { font-family: sans-serif; margin: 20px; }
-        h1 { margin-bottom: 10px; }
+
+        /* header layout: title on left, ad on right */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 10px;
+        }
+
+        h1 { margin: 0; }
+
+        .header-text {
+            flex: 1 1 auto;
+        }
+
+        .ad-slot-top-right {
+            flex: 0 0 auto;
+            text-align: right;
+            max-width: 728px; /* 728x90 banner */
+        }
+
+        @media (max-width: 900px) {
+            .header-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .ad-slot-top-right {
+                text-align: center;
+            }
+        }
+
         .sport-section { margin-bottom: 30px; }
         .game-card {
             border: 1px solid #ddd;
@@ -23,7 +54,28 @@
     </style>
 </head>
 <body>
-    <h1>Today's Games</h1>
+    <!-- Header with title on left, ad on right -->
+    <div class="header-container">
+        <div class="header-text">
+            <h1>Today's Games</h1>
+        </div>
+
+        <div class="ad-slot-top-right">
+            <script type="text/javascript">
+              atOptions = {
+              	'key' : '404cd50590d1227fb3038749119d5034',
+              	'format' : 'iframe',
+              	'height' : 90,
+              	'width' : 728,
+              	'params' : {}
+              };
+            </script>
+            <script
+              type="text/javascript"
+              src="//www.highperformanceformat.com/404cd50590d1227fb3038749119d5034/invoke.js"
+            ></script>
+        </div>
+    </div>
 
     {% if sections %}
         {% for section in sections %}
