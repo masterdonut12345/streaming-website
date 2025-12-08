@@ -15,6 +15,41 @@
             border: none;
         }
 
+        /* header layout: text on left, ad on right */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .header-text {
+            flex: 1 1 auto;
+        }
+
+        /* ad slot top-right */
+        .ad-slot-top-right {
+            flex: 0 0 auto;
+            text-align: right;
+            max-width: 320px; /* 320x50 banner */
+        }
+
+        /* generic ad slot (e.g., below player) */
+        .ad-slot {
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        @media (max-width: 700px) {
+            .header-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .ad-slot-top-right {
+                text-align: center;
+            }
+        }
+
         /* simple stream picker styles */
         .stream-picker {
             margin-top: 15px;
@@ -35,43 +70,38 @@
             color: #fff;
             border-color: #007bff;
         }
-
-        /* ad slot styling */
-        .ad-slot {
-            margin: 15px 0;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
     <p><a href="{{ url_for('index') }}">&larr; Back to today’s games</a></p>
 
-    <h1>{{ game.matchup }}</h1>
-    <h2>{{ game.sport }}</h2>
+    <!-- Header with text on left and ad on right -->
+    <div class="header-container">
+        <div class="header-text">
+            <h1>{{ game.matchup }}</h1>
+            <h2>{{ game.sport }}</h2>
 
-    <div class="meta">
-        <p>
-            <strong>Tournament:</strong>
-            {{ game.tournament or 'N/A' }}
-            {% if game.tournament_url %}
-                &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
-            {% endif %}
-        </p>
-        <p>
-            <strong>Date header:</strong> {{ game.date_header or 'Today' }}<br>
-            {% if game.time %}
-                <strong>Time:</strong> {{ game.time }}
-            {% elif game.time_unix %}
-                <strong>Time (unix):</strong> {{ game.time_unix }}
-            {% endif %}
-        </p>
-    </div>
+            <div class="meta">
+                <p>
+                    <strong>Tournament:</strong>
+                    {{ game.tournament or 'N/A' }}
+                    {% if game.tournament_url %}
+                        &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
+                    {% endif %}
+                </p>
+                <p>
+                    <strong>Date header:</strong> {{ game.date_header or 'Today' }}<br>
+                    {% if game.time %}
+                        <strong>Time:</strong> {{ game.time }}
+                    {% elif game.time_unix %}
+                        <strong>Time (unix):</strong> {{ game.time_unix }}
+                    {% endif %}
+                </p>
+            </div>
+        </div>
 
-    {% set first_stream = (game.streams[0] if game.streams else None) %}
-
-    {% if first_stream %}
-        <!-- Ad above the live stream player -->
-        <div class="ad-slot">
+        <!-- Ad #1 in the top-right -->
+        <div class="ad-slot-top-right">
             <script type="text/javascript">
               atOptions = {
               	'key' : '5478f94711ce55d9b858433d3c49812f',
@@ -86,7 +116,11 @@
               src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
             ></script>
         </div>
+    </div>
 
+    {% set first_stream = (game.streams[0] if game.streams else None) %}
+
+    {% if first_stream %}
         <h3>Live Stream</h3>
         <iframe
             id="game-iframe"
@@ -106,6 +140,23 @@
                     {{ s.label or ('Stream ' ~ loop.index) }}
                 </button>
             {% endfor %}
+        </div>
+
+        <!-- Ad #2 centered below the player/buttons -->
+        <div class="ad-slot">
+            <script type="text/javascript">
+              atOptions = {
+              	'key' : '5478f94711ce55d9b858433d3c49812f',
+              	'format' : 'iframe',
+              	'height' : 50,
+              	'width' : 320,
+              	'params' : {}
+              };
+            </script>
+            <script
+              type="text/javascript"
+              src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
+            ></script>
         </div>
     {% else %}
         <p><strong>No embed URL available for this game.</strong></p>
