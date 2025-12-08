@@ -25,6 +25,7 @@
             --surface-2: #12121a;
             --input-bg: #0f0f15;
             --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.65);
+            --live: #ff4d6a;
         }
 
         * {
@@ -265,6 +266,13 @@
             background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.12), #0b0b12);
         }
 
+        .game-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
         .game-title {
             font-weight: 600;
             font-size: 1.03em;
@@ -291,6 +299,33 @@
         .meta strong {
             color: #d0d0d0;
             font-weight: 500;
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+
+        .status-live {
+            border-color: rgba(255, 77, 106, 0.7);
+            background: rgba(255, 77, 106, 0.15);
+            color: #ffcdd5;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--live);
+            box-shadow: 0 0 8px rgba(255, 77, 106, 0.7);
         }
 
         .empty-state {
@@ -374,6 +409,9 @@
 
         {% if sections %}
             {% for section in sections %}
+                {# count live games in this sport; assumes game.is_live is truthy when live #}
+                {% set live_count = section.games|selectattr('is_live')|list|length %}
+
                 <!-- sport-section starts collapsed; JS will open the first one -->
                 <div class="sport-section">
                     <div class="sport-header">
@@ -383,6 +421,9 @@
                                 <h2>{{ section.sport }}</h2>
                                 <div class="sport-subtitle">
                                     {{ section.games|length }} game{% if section.games|length != 1 %}s{% endif %}
+                                    {% if live_count > 0 %}
+                                        • <span class="live-dot"></span> {{ live_count }} live
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -392,10 +433,17 @@
                     <div class="sport-body">
                         {% for game in section.games %}
                             <div class="game-card">
-                                <div class="game-title">
-                                    <a href="{{ url_for('game_detail', game_id=game.id) }}">
-                                        {{ game.matchup }}
-                                    </a>
+                                <div class="game-title-row">
+                                    <div class="game-title">
+                                        <a href="{{ url_for('game_detail', game_id=game.id) }}">
+                                            {{ game.matchup }}
+                                        </a>
+                                    </div>
+                                    {% if game.is_live %}
+                                        <div class="status-badge status-live">
+                                            <span class="live-dot"></span> LIVE
+                                        </div>
+                                    {% endif %}
                                 </div>
                                 <div class="meta">
                                     <strong>Tournament:</strong> {{ game.tournament or 'N/A' }}<br>
@@ -458,7 +506,7 @@
                     sec.classList.toggle('open');
                 });
 
-                // Optionally open the first section by default
+                // Open the first section by default
                 if (index === 0) {
                     sec.classList.add('open');
                 }
