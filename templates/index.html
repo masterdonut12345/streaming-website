@@ -93,6 +93,45 @@
             color: var(--muted);
         }
 
+        /* social links row under tagline */
+        .social-row {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .social-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-right: 4px;
+        }
+
+        .social-link {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(8, 8, 16, 0.9);
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .social-link span.handle {
+            color: var(--accent);
+        }
+
+        .social-link:hover {
+            background: rgba(18, 18, 28, 0.95);
+            border-color: rgba(122, 162, 255, 0.7);
+            transform: translateY(-1px);
+        }
+
         .ad-slot-top-right {
             flex: 0 0 auto;
             text-align: right;
@@ -367,7 +406,17 @@
             <div class="header-container">
                 <div class="header-text">
                     <h1>Today's Games</h1>
-                    <p class="tagline">Live schedules, matchups, and tournament info in one clean view.</p>
+                    <p class="tagline">Live schedules, matchups, and tournament.</p>
+
+                    <div class="social-row">
+                        <span class="social-label">Follow:</span>
+                        <a class="social-link" href="https://x.com/thestreamden" target="_blank" rel="noopener">
+                            𝕏 <span class="handle">@TheStreamDen</span>
+                        </a>
+                        <a class="social-link" href="https://x.com/CWILL18MVP" target="_blank" rel="noopener">
+                            Main social: <span class="handle">@CWILL18MVP</span>
+                        </a>
+                    </div>
                 </div>
 
                 <div class="ad-slot-top-right">
