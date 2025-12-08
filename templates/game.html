@@ -84,9 +84,22 @@
             gap: 20px;
         }
 
+        /* FIXED: tighten ad box to the actual 320x50 size */
         .ad-slot-left {
             flex: 0 0 auto;
-            max-width: 320px;
+            width: 320px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            overflow: hidden;
+        }
+
+        /* Force the ad iframe to fill the box (no extra white space) */
+        .ad-slot-left iframe {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
         }
 
         .header-text {
@@ -153,6 +166,7 @@
             .ad-slot-left {
                 text-align: left;
                 width: 100%;
+                max-width: 320px;
                 margin-bottom: 8px;
             }
         }
