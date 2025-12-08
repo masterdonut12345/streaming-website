@@ -142,8 +142,11 @@ def run_scraper_job():
 
 
 def start_scheduler():
+    # run once immediately at startup
+    run_scraper_job()
+
     scheduler = BackgroundScheduler()
-    # run every 5 minutes (adjust as needed)
+    # run every 5 minutes (adjust if you want)
     scheduler.add_job(
         run_scraper_job,
         "interval",
@@ -154,7 +157,6 @@ def start_scheduler():
     scheduler.start()
     print("[scheduler] Started background scheduler.")
 
-    # Shut down the scheduler when exiting the app
     atexit.register(lambda: scheduler.shutdown())
 
 
