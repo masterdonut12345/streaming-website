@@ -133,6 +133,12 @@ def scrape_today_games_shark() -> pd.DataFrame:
     Scrape games from sharkstreams.net homepage and return
     a DataFrame with the same columns as sport71, including a
     'streams' list and 'embed_url' prefilled.
+
+    This version:
+      - Uses the .ch-date, .ch-category, .ch-name, and .hd-link
+        elements present in the current HTML.
+      - Does NOT filter out games based on today's date; it
+        simply returns everything the homepage shows.
     """
     print("[shark] Fetching:", BASE_URL_SHARK)
     try:
@@ -147,15 +153,24 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
     soup = BeautifulSoup(req.text, "html.parser")
 
-    today = datetime.now().date()
     rows: List[Dict[str, Any]] = []
 
-    # Each channel row looks like <div class="row"> ... with spans ch-date, ch-category, ch-name
+    # Each channel row looks like:
+    # <div class="row">
+    #   <span class="ch-date">2025-12-07 13:00:00</span> -
+    #   <span class="ch-category">NFL</span><br>
+    #   <span class="ch-name">Cincinnati Bengals vs Buffalo Bills</span>
+    #   ...
+    #   <a class="hd-link" onclick="...openEmbed('https://sharkstreams.net/player.php?channel=XXX')">
+    #       Embed
+    #   </a>
+    # </div>
     for row_div in soup.find_all("div", class_="row"):
         # date/time
         date_span = row_div.find("span", class_="ch-date")
         if not date_span:
             continue
+
         date_str = date_span.get_text(strip=True)
         try:
             # Example: "2025-12-07 13:00:00"
@@ -164,15 +179,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
             print(f"[shark] Failed to parse date: {date_str}")
             continue
 
-        # keep today and future games, skip only past dates
-        if event_dt.date() < today:
-            continue
-
         # category (sport)
         cat_span = row_div.find("span", class_="ch-category")
         sport_name = cat_span.get_text(strip=True) if cat_span else "Unknown"
-
-        # matchup / channel name
 
         # matchup / channel name
         name_span = row_div.find("span", class_="ch-name")
@@ -180,6 +189,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
         # mark SharkStreams entries as alternative links
         matchup = f"{raw_matchup} (alternative)"
+
         # "Embed" button – URL is inside onclick="openEmbed('https://sharkstreams.net/player.php?channel=8')"
         embed_link = None
         for a in row_div.find_all("a", class_="hd-link"):
@@ -190,8 +200,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
                     embed_link = m.group(1)
                 break
 
+        # Fallback: try to derive from watch button (player.php?channel=...)
         if not embed_link:
-            # fallback: try to derive from watch button (player.php?channel=...)
             for a in row_div.find_all("a", class_="hd-link"):
                 if "Watch" in a.get_text(strip=True):
                     onclick = a.get("onclick", "")
@@ -204,6 +214,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
         if not embed_link:
             print(f"[shark] No embed link found for {matchup}")
             continue
+
+        # Normalize to absolute URL (in case it isn't already)
+        embed_link = urljoin(BASE_URL_SHARK, embed_link)
 
         time_unix = int(event_dt.timestamp() * 1000)
 
@@ -231,9 +244,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows)
-    print(f"[shark] Found {len(df)} games (today and future).")
+    print(f"[shark] Found {len(df)} games (from SharkStreams homepage).")
     return df
-# ========= 3) OLD SPORT71 STREAM HELPERS =========
 
 def extract_embed_url_from_soup(soup: BeautifulSoup) -> Optional[str]:
     """
