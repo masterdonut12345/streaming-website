@@ -406,7 +406,7 @@
             <div class="header-container">
                 <div class="header-text">
                     <h1>Today's Games</h1>
-                    <p class="tagline">Live schedules, matchups, and tournament.</p>
+                    <p class="tagline">Live schedules, matchups, and tournament info.</p>
 
                     <div class="social-row">
                         <span class="social-label">Follow:</span>
@@ -458,10 +458,8 @@
 
         {% if sections %}
             {% for section in sections %}
-                {# count live games in this sport; assumes game.is_live is truthy when live #}
                 {% set live_count = section.games|selectattr('is_live')|list|length %}
 
-                <!-- sport-section starts collapsed; JS will open the first one -->
                 <div class="sport-section">
                     <div class="sport-header">
                         <div class="sport-header-left">
@@ -535,12 +533,6 @@
           src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
         ></script>
     </div>
-
-    <!-- Popunder script -->
-    <script
-      type="text/javascript"
-      src="//pl28213391.effectivegatecpm.com/10/0b/5c/100b5c0f06c917d350ecd499f4f7fa16.js"
-    ></script>
 
     <script>
         // Make each sport-section collapsible
