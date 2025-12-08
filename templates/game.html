@@ -35,6 +35,12 @@
             color: #fff;
             border-color: #007bff;
         }
+
+        /* ad slot styling */
+        .ad-slot {
+            margin: 15px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -64,6 +70,23 @@
     {% set first_stream = (game.streams[0] if game.streams else None) %}
 
     {% if first_stream %}
+        <!-- Ad above the live stream player -->
+        <div class="ad-slot">
+            <script type="text/javascript">
+              atOptions = {
+              	'key' : '5478f94711ce55d9b858433d3c49812f',
+              	'format' : 'iframe',
+              	'height' : 50,
+              	'width' : 320,
+              	'params' : {}
+              };
+            </script>
+            <script
+              type="text/javascript"
+              src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
+            ></script>
+        </div>
+
         <h3>Live Stream</h3>
         <iframe
             id="game-iframe"
