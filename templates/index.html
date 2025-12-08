@@ -78,8 +78,8 @@
         }
 
         h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.25rem;
+            margin: 0;
+            font-size: 1.1rem;
         }
 
         .header-text {
@@ -175,26 +175,77 @@
         }
 
         .sport-section {
-            margin-bottom: 28px;
+            margin-bottom: 16px;
+            border-radius: 14px;
+            background: rgba(5, 5, 12, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            overflow: hidden;
         }
 
-        .sport-section h2 {
-            display: inline-flex;
+        /* clickable dropdown header for each sport */
+        .sport-header {
+            display: flex;
             align-items: center;
-            gap: 8px;
-            padding-left: 10px;
-            border-left: 3px solid var(--accent);
-            color: var(--text);
-            opacity: 0.95;
+            justify-content: space-between;
+            padding: 10px 12px;
+            cursor: pointer;
+            background: radial-gradient(circle at left, rgba(122, 162, 255, 0.12), transparent);
         }
 
-        .sport-section h2::after {
-            content: "";
-            height: 1px;
-            flex: 1 1 auto;
-            margin-left: 10px;
-            background: linear-gradient(to right, rgba(122, 162, 255, 0.6), transparent);
-            opacity: 0.4;
+        .sport-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sport-pill {
+            width: 8px;
+            height: 32px;
+            border-radius: 999px;
+            background: linear-gradient(to bottom, var(--accent), transparent);
+            opacity: 0.8;
+        }
+
+        .sport-title-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sport-title-text h2 {
+            margin: 0;
+            font-size: 1rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .sport-subtitle {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .sport-toggle-icon {
+            font-size: 1rem;
+            color: var(--muted);
+            transition: transform 0.15s ease, color 0.15s ease;
+        }
+
+        .sport-section.open .sport-toggle-icon {
+            transform: rotate(90deg);
+            color: var(--accent);
+        }
+
+        .sport-section:hover .sport-header {
+            background: radial-gradient(circle at left, rgba(122, 162, 255, 0.18), rgba(10, 10, 18, 0.95));
+        }
+
+        .sport-body {
+            padding: 6px 10px 10px;
+            display: none;
+        }
+
+        .sport-section.open .sport-body {
+            display: block;
         }
 
         .game-card {
@@ -323,30 +374,44 @@
 
         {% if sections %}
             {% for section in sections %}
+                <!-- sport-section starts collapsed; JS will open the first one -->
                 <div class="sport-section">
-                    <h2>{{ section.sport }}</h2>
-
-                    {% for game in section.games %}
-                        <div class="game-card">
-                            <div class="game-title">
-                                <a href="{{ url_for('game_detail', game_id=game.id) }}">
-                                    {{ game.matchup }}
-                                </a>
-                            </div>
-                            <div class="meta">
-                                <strong>Tournament:</strong> {{ game.tournament or 'N/A' }}<br>
-                                {% if game.time %}
-                                    <strong>Time:</strong> {{ game.time }}
-                                {% else %}
-                                    <strong>Time (unix):</strong> {{ game.time_unix or 'N/A' }}
-                                {% endif %}<br>
-                                <strong>Date:</strong> {{ game.date_header or 'Today' }}<br>
-                                {% if game.tournament_url %}
-                                    <a href="{{ game.tournament_url }}" target="_blank">View tournament page ↗</a>
-                                {% endif %}
+                    <div class="sport-header">
+                        <div class="sport-header-left">
+                            <div class="sport-pill"></div>
+                            <div class="sport-title-text">
+                                <h2>{{ section.sport }}</h2>
+                                <div class="sport-subtitle">
+                                    {{ section.games|length }} game{% if section.games|length != 1 %}s{% endif %}
+                                </div>
                             </div>
                         </div>
-                    {% endfor %}
+                        <div class="sport-toggle-icon">▶</div>
+                    </div>
+
+                    <div class="sport-body">
+                        {% for game in section.games %}
+                            <div class="game-card">
+                                <div class="game-title">
+                                    <a href="{{ url_for('game_detail', game_id=game.id) }}">
+                                        {{ game.matchup }}
+                                    </a>
+                                </div>
+                                <div class="meta">
+                                    <strong>Tournament:</strong> {{ game.tournament or 'N/A' }}<br>
+                                    {% if game.time %}
+                                        <strong>Time:</strong> {{ game.time }}
+                                    {% else %}
+                                        <strong>Time (unix):</strong> {{ game.time_unix or 'N/A' }}
+                                    {% endif %}<br>
+                                    <strong>Date:</strong> {{ game.date_header or 'Today' }}<br>
+                                    {% if game.tournament_url %}
+                                        <a href="{{ game.tournament_url }}" target="_blank">View tournament page ↗</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             {% endfor %}
         {% else %}
@@ -379,5 +444,26 @@
       type="text/javascript"
       src="//pl28213391.effectivegatecpm.com/10/0b/5c/100b5c0f06c917d350ecd499f4f7fa16.js"
     ></script>
+
+    <script>
+        // Make each sport-section collapsible
+        document.addEventListener('DOMContentLoaded', function () {
+            const sections = document.querySelectorAll('.sport-section');
+
+            sections.forEach(function (sec, index) {
+                const header = sec.querySelector('.sport-header');
+                if (!header) return;
+
+                header.addEventListener('click', function () {
+                    sec.classList.toggle('open');
+                });
+
+                // Optionally open the first section by default
+                if (index === 0) {
+                    sec.classList.add('open');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
