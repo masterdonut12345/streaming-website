@@ -2,81 +2,156 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ game.matchup }} - {{ game.sport }}</title>
+
+    <!-- Modern font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
+
     <style>
         :root {
-            --bg: #000;
+            --bg: #050508;
+            --bg-alt: #050509;
             --text: #f5f5f5;
             --muted: #b8b8b8;
             --accent: #7aa2ff;
+            --accent-soft: rgba(122, 162, 255, 0.16);
             --border: #222;
-            --surface: #0b0b0b;
-            --surface-2: #121212;
-            --button-bg: #101010;
-            --button-hover: #1a1a1a;
+            --surface: #0b0b10;
+            --surface-2: #12121a;
+            --button-bg: #10101a;
+            --button-hover: #19192a;
+            --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.8);
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            font-family: sans-serif;
-            margin: 20px;
-            background: var(--bg);
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background:
+                radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
             color: var(--text);
         }
 
-        a { text-decoration: none; color: var(--accent); }
-        a:hover { text-decoration: underline; }
-
-        /* Reduce space below meta data */
-        .meta { 
-            margin-top: 5px;
-            margin-bottom: 5px;
-            font-size: 0.95em; 
-            color: var(--muted); 
+        .page-wrapper {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
         }
 
-        /* Remove extra spacing before the player */
-        h3 {
-            margin-top: 5px;
-            margin-bottom: 5px;
-            color: var(--text);
+        @media (min-width: 1100px) {
+            .page-wrapper {
+                margin-right: 220px; /* leave room for skyscraper if you add one later */
+            }
         }
 
-        h1, h2 { color: var(--text); }
-
-        iframe {
-            width: 100%;
-            max-width: 900px;
-            height: 500px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            margin-top: 0; /* ensure no added gap */
-            background: var(--surface);
+        a {
+            text-decoration: none;
+            color: var(--accent);
+            transition: color 0.15s ease, text-shadow 0.18s ease;
+        }
+        a:hover {
+            color: #a4bcff;
+            text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
         }
 
-        /* header layout: text on left, ad on right */
+        .back-link {
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .back-link a {
+            color: var(--muted);
+        }
+        .back-link a:hover {
+            color: var(--accent);
+        }
+
+        header {
+            border-radius: 20px;
+            padding: 18px 20px;
+            margin-bottom: 18px;
+            background:
+                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
+            border: 1px solid rgba(122, 162, 255, 0.25);
+            box-shadow: var(--shadow-soft);
+        }
+
         .header-container {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 5px; /* tighten header-to-content spacing */
+            gap: 20px;
         }
 
         .header-text {
             flex: 1 1 auto;
         }
 
-        /* ad slot top-right */
+        h1 {
+            margin: 0 0 4px 0;
+            font-size: 2.0rem;
+            letter-spacing: 0.02em;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        .meta {
+            margin-top: 4px;
+            margin-bottom: 2px;
+            font-size: 0.9em;
+            color: var(--muted);
+        }
+
+        .meta-row {
+            margin: 2px 0;
+        }
+
+        .meta strong {
+            color: #dddddd;
+            font-weight: 500;
+        }
+
+        .meta-chips {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            font-size: 0.78rem;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(10, 10, 18, 0.95);
+            color: var(--muted);
+        }
+
+        .chip-accent {
+            border-color: rgba(122, 162, 255, 0.6);
+            background: rgba(122, 162, 255, 0.1);
+            color: #dde5ff;
+        }
+
         .ad-slot-top-right {
             flex: 0 0 auto;
             text-align: right;
             max-width: 320px;
             margin-top: 0;
-        }
-
-        /* generic ad slot (e.g., below player) */
-        .ad-slot {
-            margin: 10px 0;
-            text-align: center;
         }
 
         @media (max-width: 700px) {
@@ -85,121 +160,203 @@
                 align-items: flex-start;
             }
             .ad-slot-top-right {
-                text-align: center;
+                text-align: left;
+                width: 100%;
+                margin-top: 10px;
             }
         }
 
-        /* stream picker */
+        h3 {
+            margin-top: 12px;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .player-card {
+            margin-top: 4px;
+            border-radius: 18px;
+            padding: 14px 14px 18px;
+            background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.1), var(--surface));
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.9);
+        }
+
+        iframe {
+            width: 100%;
+            max-width: 100%;
+            height: 480px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            margin-top: 0;
+            background: #050508;
+        }
+
+        @media (max-width: 700px) {
+            iframe {
+                height: 360px;
+            }
+        }
+
         .stream-picker {
-            margin-top: 8px;  /* reduced */
+            margin-top: 12px;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
         }
 
         .stream-button {
-            padding: 7px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            padding: 7px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
             background: var(--button-bg);
             color: var(--text);
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.86rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition:
+                background 0.15s ease,
+                border-color 0.15s ease,
+                transform 0.1s ease,
+                box-shadow 0.15s ease;
         }
+
         .stream-button:hover {
             background: var(--button-hover);
+            border-color: rgba(122, 162, 255, 0.7);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.7);
         }
+
         .stream-button.active {
             background: var(--accent);
-            color: #0a0a0a;
+            color: #050508;
             border-color: var(--accent);
             font-weight: 600;
+            box-shadow: 0 14px 30px rgba(122, 162, 255, 0.5);
+        }
+
+        .ad-slot {
+            margin: 16px 0 0;
+            text-align: center;
+        }
+
+        .no-stream {
+            margin-top: 30px;
+            padding: 16px 14px;
+            border-radius: 14px;
+            background: rgba(10, 10, 16, 0.95);
+            border: 1px dashed rgba(122, 162, 255, 0.4);
+            color: var(--muted);
+            font-size: 0.95rem;
         }
     </style>
 </head>
 <body>
-    <p><a href="{{ url_for('index') }}">&larr; Back to today’s games</a></p>
+    <div class="page-wrapper">
+        <div class="back-link">
+            <a href="{{ url_for('index') }}">&larr; Back to today’s games</a>
+        </div>
 
-    <!-- Header with text on left and ad on right -->
-    <div class="header-container">
-        <div class="header-text">
-            <h1>{{ game.matchup }}</h1>
-            <h2>{{ game.sport }}</h2>
+        <!-- Header with text on left and ad on right -->
+        <header>
+            <div class="header-container">
+                <div class="header-text">
+                    <h1>{{ game.matchup }}</h1>
+                    <h2>{{ game.sport }}</h2>
 
-            <div class="meta">
-                <p>
-                    <strong>Tournament:</strong>
-                    {{ game.tournament or 'N/A' }}
-                    {% if game.tournament_url %}
-                        &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
-                    {% endif %}
-                </p>
-                <p>
-                    <strong>Date header:</strong> {{ game.date_header or 'Today' }}<br>
-                    {% if game.time %}
-                        <strong>Time:</strong> {{ game.time }}
-                    {% elif game.time_unix %}
-                        <strong>Time (unix):</strong> {{ game.time_unix }}
-                    {% endif %}
-                </p>
+                    <div class="meta">
+                        <div class="meta-row">
+                            <strong>Tournament:</strong>
+                            {{ game.tournament or 'N/A' }}
+                            {% if game.tournament_url %}
+                                &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page ↗</a>
+                            {% endif %}
+                        </div>
+                        <div class="meta-row">
+                            <strong>Date:</strong> {{ game.date_header or 'Today' }}
+                            {% if game.time %}
+                                &mdash; <strong>Time:</strong> {{ game.time }}
+                            {% elif game.time_unix %}
+                                &mdash; <strong>Time (unix):</strong> {{ game.time_unix }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="meta-chips">
+                        <span class="chip chip-accent">Live stream</span>
+                        {% if game.sport %}
+                            <span class="chip">{{ game.sport }}</span>
+                        {% endif %}
+                        {% if game.tournament %}
+                            <span class="chip">{{ game.tournament }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Ad #1 in the top-right (320x50 banner) -->
+                <div class="ad-slot-top-right">
+                    <script type="text/javascript">
+                      atOptions = {
+                        'key' : '5478f94711ce55d9b858433d3c49812f',
+                        'format' : 'iframe',
+                        'height' : 50,
+                        'width' : 320,
+                        'params' : {}
+                      };
+                    </script>
+                    <script
+                      type="text/javascript"
+                      src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
+                    ></script>
+                </div>
             </div>
-        </div>
+        </header>
 
-        <!-- Ad #1 in the top-right (320x50 banner) -->
-        <div class="ad-slot-top-right">
-            <script type="text/javascript">
-              atOptions = {
-                'key' : '5478f94711ce55d9b858433d3c49812f',
-                'format' : 'iframe',
-                'height' : 50,
-                'width' : 320,
-                'params' : {}
-              };
-            </script>
-            <script
-              type="text/javascript"
-              src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
-            ></script>
-        </div>
+        {% set first_stream = (game.streams[0] if game.streams else None) %}
+
+        {% if first_stream %}
+            <div class="player-card">
+                <h3>Live Stream</h3>
+
+                <iframe
+                    id="game-iframe"
+                    src="{{ first_stream.embed_url }}"
+                    allowfullscreen
+                    scrolling="no">
+                </iframe>
+
+                <!-- Stream buttons -->
+                <div class="stream-picker" id="stream-picker">
+                    {% for s in game.streams %}
+                        <button
+                            type="button"
+                            class="stream-button {% if loop.first %}active{% endif %}"
+                            data-embed-url="{{ s.embed_url }}"
+                        >
+                            {{ s.label or ('Stream ' ~ loop.index) }}
+                        </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Ad #2: native banner below the player/buttons -->
+                <div class="ad-slot">
+                    <script
+                      async="async"
+                      data-cfasync="false"
+                      src="//pl28213154.effectivegatecpm.com/ced6c8c8dbe2168bf17b0ffaa1cf5474/invoke.js"
+                    ></script>
+                    <div id="container-ced6c8c8dbe2168bf17b0ffaa1cf5474"></div>
+                </div>
+            </div>
+        {% else %}
+            <div class="no-stream">
+                <strong>No embed URL available for this game.</strong><br>
+                Check back closer to game time or try another stream.
+            </div>
+        {% endif %}
     </div>
-
-    {% set first_stream = (game.streams[0] if game.streams else None) %}
-
-    {% if first_stream %}
-        <h3>Live Stream</h3>
-
-        <iframe
-            id="game-iframe"
-            src="{{ first_stream.embed_url }}"
-            allowfullscreen
-            scrolling="no">
-        </iframe>
-
-        <!-- Stream buttons -->
-        <div class="stream-picker" id="stream-picker">
-            {% for s in game.streams %}
-                <button
-                    type="button"
-                    class="stream-button {% if loop.first %}active{% endif %}"
-                    data-embed-url="{{ s.embed_url }}"
-                >
-                    {{ s.label or ('Stream ' ~ loop.index) }}
-                </button>
-            {% endfor %}
-        </div>
-
-        <!-- Ad #2: native banner below the player/buttons -->
-        <div class="ad-slot">
-            <script
-              async="async"
-              data-cfasync="false"
-              src="//pl28213154.effectivegatecpm.com/ced6c8c8dbe2168bf17b0ffaa1cf5474/invoke.js"
-            ></script>
-            <div id="container-ced6c8c8dbe2168bf17b0ffaa1cf5474"></div>
-        </div>
-    {% else %}
-        <p><strong>No embed URL available for this game.</strong></p>
-    {% endif %}
 
     <script>
         // simple JS to swap iframe URL when a button is clicked
