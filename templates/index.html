@@ -27,6 +27,10 @@
             max-width: 728px; /* 728x90 banner */
         }
 
+        .ad-slot-top-right .vertical-ad {
+            margin-top: 10px; /* space between 728x90 and 160x600 */
+        }
+
         @media (max-width: 900px) {
             .header-container {
                 flex-direction: column;
@@ -54,13 +58,14 @@
     </style>
 </head>
 <body>
-    <!-- Header with title on left, ad on right -->
+    <!-- Header with title on left, ads on right -->
     <div class="header-container">
         <div class="header-text">
             <h1>Today's Games</h1>
         </div>
 
         <div class="ad-slot-top-right">
+            <!-- 728x90 banner -->
             <script type="text/javascript">
               atOptions = {
               	'key' : '404cd50590d1227fb3038749119d5034',
@@ -74,6 +79,23 @@
               type="text/javascript"
               src="//www.highperformanceformat.com/404cd50590d1227fb3038749119d5034/invoke.js"
             ></script>
+
+            <!-- 160x600 vertical banner under the first one -->
+            <div class="vertical-ad">
+                <script type="text/javascript">
+                  atOptions = {
+                  	'key' : '29ef845582924216c628b8930841e3bb',
+                  	'format' : 'iframe',
+                  	'height' : 600,
+                  	'width' : 160,
+                  	'params' : {}
+                  };
+                </script>
+                <script
+                  type="text/javascript"
+                  src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
+                ></script>
+            </div>
         </div>
     </div>
 
