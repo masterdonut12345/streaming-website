@@ -27,10 +27,6 @@
             max-width: 728px; /* 728x90 banner */
         }
 
-        .ad-slot-top-right .vertical-ad {
-            margin-top: 10px; /* space between 728x90 and 160x600 */
-        }
-
         @media (max-width: 900px) {
             .header-container {
                 flex-direction: column;
@@ -55,10 +51,27 @@
         a { text-decoration: none; color: #007bff; }
         a:hover { text-decoration: underline; }
         .meta { font-size: 0.9em; color: #555; margin-top: 4px; }
+
+        /* Fixed right-side vertical ad so it doesn't push content down */
+        .vertical-ad-fixed {
+            position: fixed;
+            top: 120px;  /* just below the header */
+            right: 20px; /* slight inset from the edge */
+            width: 160px;
+            height: 600px;
+            z-index: 100;
+        }
+
+        /* Hide the tall skyscraper on smaller screens */
+        @media (max-width: 1100px) {
+            .vertical-ad-fixed {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Header with title on left, ads on right -->
+    <!-- Header with title on left, 728x90 ad on right -->
     <div class="header-container">
         <div class="header-text">
             <h1>Today's Games</h1>
@@ -79,24 +92,24 @@
               type="text/javascript"
               src="//www.highperformanceformat.com/404cd50590d1227fb3038749119d5034/invoke.js"
             ></script>
-
-            <!-- 160x600 vertical banner under the first one -->
-            <div class="vertical-ad">
-                <script type="text/javascript">
-                  atOptions = {
-                  	'key' : '29ef845582924216c628b8930841e3bb',
-                  	'format' : 'iframe',
-                  	'height' : 600,
-                  	'width' : 160,
-                  	'params' : {}
-                  };
-                </script>
-                <script
-                  type="text/javascript"
-                  src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
-                ></script>
-            </div>
         </div>
+    </div>
+
+    <!-- Fixed right-side 160x600 ad (does NOT push content down) -->
+    <div class="vertical-ad-fixed">
+        <script type="text/javascript">
+          atOptions = {
+          	'key' : '29ef845582924216c628b8930841e3bb',
+          	'format' : 'iframe',
+          	'height' : 600,
+          	'width' : 160,
+          	'params' : {}
+          };
+        </script>
+        <script
+          type="text/javascript"
+          src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
+        ></script>
     </div>
 
     {% if sections %}
