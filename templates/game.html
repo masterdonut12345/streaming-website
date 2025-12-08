@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -93,7 +94,6 @@
 
         .header-text {
             flex: 1 1 auto;
-            /* pulls text a bit away from the extreme left edge visually */
             padding-right: 10px;
         }
 
@@ -241,4 +241,101 @@
             padding: 16px 14px;
             border-radius: 14px;
             background: rgba(10, 10, 16, 0.95);
-            border: 1px dashed rgb
+            border: 1px dashed rgba(122, 162, 255, 0.4);
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <div class="back-link">
+            <a href="{{ url_for('index') }}">&larr; Back to today’s games</a>
+        </div>
+
+        <!-- Header: AD on the far left, text right beside it -->
+        <header>
+            <div class="header-container">
+                <div class="ad-slot-left">
+                    <script type="text/javascript">
+                      atOptions = {
+                        'key' : '5478f94711ce55d9b858433d3c49812f',
+                        'format' : 'iframe',
+                        'height' : 50,
+                        'width' : 320,
+                        'params' : {}
+                      };
+                    </script>
+                    <script
+                      type="text/javascript"
+                      src="//www.highperformanceformat.com/5478f94711ce55d9b858433d3c49812f/invoke.js"
+                    ></script>
+                </div>
+
+                <div class="header-text">
+                    <h1>{{ game.matchup }}</h1>
+                    <h2>{{ game.sport }}</h2>
+
+                    <div class="meta">
+                        <div class="meta-row">
+                            <strong>Tournament:</strong>
+                            {{ game.tournament or 'N/A' }}
+                            {% if game.tournament_url %}
+                                &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page ↗</a>
+                            {% endif %}
+                        </div>
+                        <div class="meta-row">
+                            <strong>Date:</strong> {{ game.date_header or 'Today' }}
+                            {% if game.time %}
+                                &mdash; <strong>Time:</strong> {{ game.time }}
+                            {% elif game.time_unix %}
+                                &mdash; <strong>Time (unix):</strong> {{ game.time_unix }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="meta-chips">
+                        <span class="chip chip-accent">Live stream</span>
+                        {% if game.sport %}
+                            <span class="chip">{{ game.sport }}</span>
+                        {% endif %}
+                        {% if game.tournament %}
+                            <span class="chip">{{ game.tournament }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        {% set first_stream = (game.streams[0] if game.streams else None) %}
+
+        {% if first_stream %}
+            <div class="player-card">
+                <h3>Live Stream</h3>
+
+                <iframe
+                    id="game-iframe"
+                    src="{{ first_stream.embed_url }}"
+                    allowfullscreen
+                    scrolling="no">
+                </iframe>
+
+                <!-- Stream buttons -->
+                <div class="stream-picker" id="stream-picker">
+                    {% for s in game.streams %}
+                        <button
+                            type="button"
+                            class="stream-button {% if loop.first %}active{% endif %}"
+                            data-embed-url="{{ s.embed_url }}"
+                        >
+                            {{ s.label or ('Stream ' ~ loop.index) }}
+                        </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Ad #2: native banner below the player/buttons -->
+                <div class="ad-slot">
+                    <script
+                      async="async"
+                      data-cfasync="false"
+                      src="//pl28213
