@@ -28,9 +28,7 @@
             --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.8);
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -86,7 +84,6 @@
             gap: 20px;
         }
 
-        /* ad on the FAR LEFT */
         .ad-slot-left {
             flex: 0 0 auto;
             max-width: 320px;
@@ -253,7 +250,6 @@
             <a href="{{ url_for('index') }}">&larr; Back to today’s games</a>
         </div>
 
-        <!-- Header: AD on the far left, text right beside it -->
         <header>
             <div class="header-container">
                 <div class="ad-slot-left">
@@ -307,7 +303,6 @@
             </div>
         </header>
 
-        {# safer: only set first_stream if game.streams exists and has elements #}
         {% if game.streams and game.streams|length > 0 %}
             {% set first_stream = game.streams[0] %}
         {% else %}
@@ -322,11 +317,9 @@
                     id="game-iframe"
                     src="{{ first_stream.embed_url }}"
                     allowfullscreen
-                    scrolling="no"
-                    sandbox="allow-scripts allow-same-origin">
+                    scrolling="no">
                 </iframe>
 
-                <!-- Stream buttons -->
                 <div class="stream-picker" id="stream-picker">
                     {% for s in game.streams %}
                         <button
@@ -339,7 +332,6 @@
                     {% endfor %}
                 </div>
 
-                <!-- Ad #2: native banner below the player/buttons -->
                 <div class="ad-slot">
                     <script
                       async="async"
@@ -358,7 +350,6 @@
     </div>
 
     <script>
-        // simple JS to swap iframe URL when a button is clicked
         (function() {
             const iframe = document.getElementById('game-iframe');
             const picker = document.getElementById('stream-picker');
@@ -371,21 +362,13 @@
                 const url = btn.getAttribute('data-embed-url');
                 if (!url) return;
 
-                // update iframe
                 iframe.src = url;
 
-                // update active state
                 picker.querySelectorAll('.stream-button').forEach(b => {
                     b.classList.toggle('active', b === btn);
                 });
             });
         })();
     </script>
-
-    <!-- Social bar script (typically floats on the page) -->
-    <script
-      type="text/javascript"
-      src="//pl28213198.effectivegatecpm.com/0f/a2/4c/0fa24c36bd8ef534a07b2aebe1ba89c3.js"
-    ></script>
 </body>
 </html>
