@@ -4,7 +4,23 @@
     <meta charset="UTF-8">
     <title>Today's Games</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; }
+        :root {
+            --bg: #000;
+            --text: #f5f5f5;
+            --muted: #b8b8b8;
+            --accent: #7aa2ff;
+            --border: #222;
+            --surface: #0b0b0b;
+            --surface-2: #121212;
+            --input-bg: #0f0f0f;
+        }
+
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background: var(--bg);
+            color: var(--text);
+        }
 
         /* header layout: title on left, ad on right */
         .header-container {
@@ -15,7 +31,10 @@
             margin-bottom: 10px;
         }
 
-        h1 { margin: 0; }
+        h1, h2 {
+            margin: 0;
+            color: var(--text);
+        }
 
         .header-text {
             flex: 1 1 auto;
@@ -42,32 +61,64 @@
             margin: 10px 0 20px 0;
         }
         .search-bar input[type="text"] {
-            padding: 6px 10px;
+            padding: 8px 10px;
             font-size: 1rem;
             width: 260px;
             max-width: 80%;
+            background: var(--input-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            outline: none;
         }
+        .search-bar input[type="text"]::placeholder {
+            color: #8a8a8a;
+        }
+        .search-bar input[type="text"]:focus {
+            border-color: #2f4b8f;
+        }
+
         .search-bar button {
-            padding: 6px 12px;
+            padding: 8px 12px;
             font-size: 0.95rem;
             cursor: pointer;
             margin-left: 4px;
+            background: var(--surface-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .search-bar button:hover {
+            background: #1a1a1a;
         }
 
         .sport-section { margin-bottom: 30px; }
+
         .game-card {
-            border: 1px solid #ddd;
-            padding: 10px 15px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 12px 15px;
             margin: 8px 0;
-            border-radius: 6px;
+            border-radius: 10px;
         }
+
         .game-title {
             font-weight: bold;
             font-size: 1.1em;
         }
-        a { text-decoration: none; color: #007bff; }
+
+        a {
+            text-decoration: none;
+            color: var(--accent);
+        }
         a:hover { text-decoration: underline; }
-        .meta { font-size: 0.9em; color: #555; margin-top: 4px; }
+
+        .meta {
+            font-size: 0.9em;
+            color: var(--muted);
+            margin-top: 6px;
+            line-height: 1.35;
+        }
 
         /* Fixed right-side vertical ad so it doesn't push content down */
         .vertical-ad-fixed {

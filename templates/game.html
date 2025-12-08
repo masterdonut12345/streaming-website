@@ -1,11 +1,28 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>{{ game.matchup }} - {{ game.sport }}</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        a { text-decoration: none; color: #007bff; }
+        :root {
+            --bg: #000;
+            --text: #f5f5f5;
+            --muted: #b8b8b8;
+            --accent: #7aa2ff;
+            --border: #222;
+            --surface: #0b0b0b;
+            --surface-2: #121212;
+            --button-bg: #101010;
+            --button-hover: #1a1a1a;
+        }
+
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        a { text-decoration: none; color: var(--accent); }
         a:hover { text-decoration: underline; }
 
         /* Reduce space below meta data */
@@ -13,21 +30,26 @@
             margin-top: 5px;
             margin-bottom: 5px;
             font-size: 0.95em; 
-            color: #555; 
+            color: var(--muted); 
         }
 
         /* Remove extra spacing before the player */
         h3 {
-            margin-top: 5px;   /* was big by default */
+            margin-top: 5px;
             margin-bottom: 5px;
+            color: var(--text);
         }
+
+        h1, h2 { color: var(--text); }
 
         iframe {
             width: 100%;
             max-width: 900px;
             height: 500px;
-            border: none;
+            border: 1px solid var(--border);
+            border-radius: 10px;
             margin-top: 0; /* ensure no added gap */
+            background: var(--surface);
         }
 
         /* header layout: text on left, ad on right */
@@ -74,18 +96,24 @@
             flex-wrap: wrap;
             gap: 8px;
         }
+
         .stream-button {
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            background: #f8f9fa;
+            padding: 7px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--button-bg);
+            color: var(--text);
             cursor: pointer;
             font-size: 0.9rem;
         }
+        .stream-button:hover {
+            background: var(--button-hover);
+        }
         .stream-button.active {
-            background: #007bff;
-            color: #fff;
-            border-color: #007bff;
+            background: var(--accent);
+            color: #0a0a0a;
+            border-color: var(--accent);
+            font-weight: 600;
         }
     </style>
 </head>
