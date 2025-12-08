@@ -33,6 +33,7 @@ def load_games():
       - matchup
       - watch_url
       - streams: list of {"label": ..., "embed_url": ...}
+      - is_live: bool (if CSV has an 'is_live' column)
     """
     if not os.path.exists(DATA_PATH):
         print(f"[load_games] CSV not found at {DATA_PATH}")
@@ -82,6 +83,14 @@ def load_games():
         else:
             game_id = int(idx)
 
+        # determine live flag if CSV has an is_live column
+        is_live = False
+        if "is_live" in df.columns:
+            raw_live = row.get("is_live")
+            if pd.notna(raw_live):
+                raw_str = str(raw_live).strip().lower()
+                is_live = raw_str in ("1", "true", "yes", "y", "live")
+
         game = {
             "id": game_id,
             "date_header": row.get("date_header"),
@@ -93,6 +102,7 @@ def load_games():
             "matchup": row.get("matchup"),
             "watch_url": row.get("watch_url"),
             "streams": streams,
+            "is_live": is_live,
         }
 
         games.append(game)
@@ -119,6 +129,13 @@ def index():
                 filtered.append(g)
         games = filtered
 
+    # live-only filter flag
+    live_only_param = request.args.get("live_only", "").strip().lower()
+    live_only = live_only_param in ("1", "true", "yes", "on")
+
+    if live_only:
+        games = [g for g in games if g.get("is_live")]
+
     sections_by_sport = {}
     for game in games:
         sport = game.get("sport") or "Other"
@@ -131,7 +148,7 @@ def index():
 
     sections.sort(key=lambda s: s["sport"])
 
-    return render_template("index.html", sections=sections, search_query=q)
+    return render_template("index.html", sections=sections, search_query=q, live_only=live_only)
 
 
 @app.route("/game/<int:game_id>")
@@ -144,8 +161,7 @@ def game_detail(game_id):
     print(f"[game_detail] Game id={game_id}")
     print(f"[game_detail]  matchup={game.get('matchup')}")
     print(f"[game_detail]  streams={game.get('streams')}")
-    if random.random() < 0.1:
-        return request("https://www.effectivegatecpm.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df")
+
     # Just render the game page.
     return render_template("game.html", game=game)
 

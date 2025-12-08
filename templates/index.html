@@ -214,6 +214,29 @@
             background: rgba(255, 255, 255, 0.02);
         }
 
+        /* live filter button in search bar */
+        .live-filter-button {
+            border-radius: 999px;
+            border: 1px solid rgba(255, 77, 106, 0.6);
+            background: rgba(255, 77, 106, 0.12);
+            color: #ffdfe7;
+        }
+
+        .live-filter-button::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--live);
+            box-shadow: 0 0 8px rgba(255, 77, 106, 0.7);
+        }
+
+        .live-filter-button.active {
+            background: rgba(255, 77, 106, 0.25);
+            border-color: rgba(255, 77, 106, 0.9);
+            color: #ffeef2;
+        }
+
         .sport-section {
             margin-bottom: 16px;
             border-radius: 14px;
@@ -340,6 +363,7 @@
             font-weight: 500;
         }
 
+        /* old status badge styles (kept in case you re-use elsewhere) */
         .status-badge {
             font-size: 0.7rem;
             text-transform: uppercase;
@@ -365,6 +389,31 @@
             border-radius: 999px;
             background: var(--live);
             box-shadow: 0 0 8px rgba(255, 77, 106, 0.7);
+        }
+
+        /* NEW: live pill shown next to each live game */
+        .live-button {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 77, 106, 0.9);
+            background: rgba(255, 77, 106, 0.18);
+            color: #ffeef2;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: default;
+        }
+
+        .live-button::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--live);
+            box-shadow: 0 0 8px rgba(255, 77, 106, 0.8);
         }
 
         .empty-state {
@@ -458,10 +507,24 @@
             <button type="submit">
                 🔍 Search
             </button>
+
+            <!-- Live-only toggle button -->
+            <button
+                type="button"
+                class="live-filter-button {% if live_only %}active{% endif %}"
+                onclick="toggleLiveOnly({{ 'true' if live_only else 'false' }})">
+                🔴 Live only
+            </button>
+
             {% if search_query %}
                 <button type="button" onclick="window.location='{{ url_for('index') }}'">
                     ✖ Clear
                 </button>
+            {% endif %}
+
+            {# Preserve live_only when searching #}
+            {% if live_only %}
+                <input type="hidden" name="live_only" value="1">
             {% endif %}
         </form>
 
@@ -496,9 +559,9 @@
                                         </a>
                                     </div>
                                     {% if game.is_live %}
-                                        <div class="status-badge status-live">
-                                            <span class="live-dot"></span> LIVE
-                                        </div>
+                                        <button class="live-button" type="button">
+                                            LIVE
+                                        </button>
                                     {% endif %}
                                 </div>
                                 <div class="meta">
@@ -559,6 +622,17 @@
     </footer>
 
     <script>
+        // toggle the live_only filter in the URL
+        function toggleLiveOnly(currentlyOn) {
+            const url = new URL(window.location.href);
+            if (currentlyOn) {
+                url.searchParams.delete('live_only');
+            } else {
+                url.searchParams.set('live_only', '1');
+            }
+            window.location.href = url.toString();
+        }
+
         // Make each sport-section collapsible
         document.addEventListener('DOMContentLoaded', function () {
             const sections = document.querySelectorAll('.sport-section');
