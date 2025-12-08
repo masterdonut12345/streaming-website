@@ -37,6 +37,23 @@
             }
         }
 
+        /* search bar */
+        .search-bar {
+            margin: 10px 0 20px 0;
+        }
+        .search-bar input[type="text"] {
+            padding: 6px 10px;
+            font-size: 1rem;
+            width: 260px;
+            max-width: 80%;
+        }
+        .search-bar button {
+            padding: 6px 12px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+
         .sport-section { margin-bottom: 30px; }
         .game-card {
             border: 1px solid #ddd;
@@ -95,6 +112,22 @@
         </div>
     </div>
 
+    <!-- Search bar -->
+    <form class="search-bar" method="get" action="{{ url_for('index') }}">
+        <input
+            type="text"
+            name="q"
+            placeholder="Search by team, sport, or tournament..."
+            value="{{ search_query or '' }}"
+        >
+        <button type="submit">Search</button>
+        {% if search_query %}
+            <button type="button" onclick="window.location='{{ url_for('index') }}'">
+                Clear
+            </button>
+        {% endif %}
+    </form>
+
     <!-- Fixed right-side 160x600 ad (does NOT push content down) -->
     <div class="vertical-ad-fixed">
         <script type="text/javascript">
@@ -141,7 +174,7 @@
             </div>
         {% endfor %}
     {% else %}
-        <p>No games found for today.</p>
+        <p>No games found{% if search_query %} for "{{ search_query }}"{% endif %}.</p>
     {% endif %}
 
     <!-- Popunder script -->

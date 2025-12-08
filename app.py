@@ -1,4 +1,5 @@
-from flask import Flask, render_template, abort, redirect
+
+from flask import Flask, render_template, abort, redirect, request
 import pandas as pd
 import ast
 import os
@@ -101,6 +102,20 @@ def load_games():
 def index():
     games = load_games()
 
+    # --- simple search support ---
+    q = request.args.get("q", "").strip().lower()
+
+    if q:
+        filtered = []
+        for g in games:
+            matchup = (g.get("matchup") or "").lower()
+            sport = (g.get("sport") or "").lower()
+            tournament = (g.get("tournament") or "").lower()
+
+            if q in matchup or q in sport or q in tournament:
+                filtered.append(g)
+        games = filtered
+
     sections_by_sport = {}
     for game in games:
         sport = game.get("sport") or "Other"
@@ -113,7 +128,7 @@ def index():
 
     sections.sort(key=lambda s: s["sport"])
 
-    return render_template("index.html", sections=sections)
+    return render_template("index.html", sections=sections, search_query=q)
 
 
 @app.route("/game/<int:game_id>")
@@ -126,9 +141,10 @@ def game_detail(game_id):
     print(f"[game_detail] Game id={game_id}")
     print(f"[game_detail]  matchup={game.get('matchup')}")
     print(f"[game_detail]  streams={game.get('streams')}")
-
-    if random.random() < 0.45:
+    if random.random() < 0.4:
         return redirect("https://www.effectivegatecpm.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df")
+    # Just render the game page.
+    # If you want an internal sponsor/interstitial page, we can wire that up safely.
     return render_template("game.html", game=game)
 
 
