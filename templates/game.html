@@ -204,18 +204,11 @@
         .stream-picker {
             margin-top: 12px;
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .stream-option {
-            display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 8px;
         }
 
-        .stream-button,
-        .stream-add-button {
+        .stream-button {
             padding: 7px 14px;
             border-radius: 999px;
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -233,8 +226,7 @@
                 box-shadow 0.15s ease;
         }
 
-        .stream-button:hover,
-        .stream-add-button:hover {
+        .stream-button:hover {
             background: var(--button-hover);
             border-color: rgba(122, 162, 255, 0.7);
             transform: translateY(-1px);
@@ -247,11 +239,6 @@
             border-color: var(--accent);
             font-weight: 600;
             box-shadow: 0 14px 30px rgba(122, 162, 255, 0.5);
-        }
-
-        .stream-add-button {
-            font-size: 0.78rem;
-            opacity: 0.9;
         }
 
         .ad-slot {
@@ -275,6 +262,29 @@
             margin-bottom: 8px;
             font-size: 0.95rem;
             color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .multi-add-button {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .multi-add-button:hover {
+            background: var(--button-hover);
+            border-color: rgba(122, 162, 255, 0.7);
         }
 
         .multi-streams {
@@ -301,12 +311,24 @@
             font-size: 0.8rem;
             color: var(--muted);
             background: radial-gradient(circle at left, rgba(122, 162, 255, 0.25), transparent);
+            gap: 6px;
+            flex-wrap: wrap;
         }
 
         .multi-stream-title {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .multi-stream-select {
+            max-width: 260px;
+            font-size: 0.78rem;
+            background: rgba(5, 5, 12, 0.95);
+            color: var(--text);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 3px 8px;
         }
 
         .multi-close {
@@ -407,35 +429,31 @@
                     scrolling="no">
                 </iframe>
 
-                <!-- Stream buttons + multi-view buttons -->
-                <div class="stream-picker" id="stream-picker">
-                    {% for s in game.streams %}
-                        <div class="stream-option">
+                <!-- Buttons to switch this game's streams -->
+                {% if game.streams|length > 1 %}
+                    <div class="stream-picker" id="stream-picker">
+                        {% for s in game.streams %}
                             <button
                                 type="button"
                                 class="stream-button {% if loop.first %}active{% endif %}"
                                 data-embed-url="{{ s.embed_url }}"
-                                data-label="{{ s.label or ('Stream ' ~ loop.index) }}"
                             >
                                 {{ s.label or ('Stream ' ~ loop.index) }}
                             </button>
-                            <button
-                                type="button"
-                                class="stream-add-button"
-                                data-embed-url="{{ s.embed_url }}"
-                                data-label="{{ s.label or ('Stream ' ~ loop.index) }}"
-                            >
-                                ➕ Multi-view
-                            </button>
-                        </div>
-                    {% endfor %}
-                </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
 
-                <!-- Multi-view area -->
-                <div class="multi-view-title">
-                    Open extra streams in multi-view (up to 4 at once):
-                </div>
-                <div class="multi-streams" id="multi-streams"></div>
+                <!-- Multi-view, using OTHER games -->
+                {% if other_games and other_games|length > 0 %}
+                    <div class="multi-view-title">
+                        <span>Multi-view: add other games (up to 4 at once)</span>
+                        <button type="button" class="multi-add-button" id="multi-add">
+                            ➕ Add multi-view slot
+                        </button>
+                    </div>
+                    <div class="multi-streams" id="multi-streams"></div>
+                {% endif %}
 
                 <!-- Ad under player -->
                 <div class="ad-slot">
@@ -457,29 +475,51 @@
 
     <script>
         (function() {
-            const mainIframe   = document.getElementById('game-iframe');
-            const picker       = document.getElementById('stream-picker');
+            const mainIframe     = document.getElementById('game-iframe');
+            const picker         = document.getElementById('stream-picker');
             const multiContainer = document.getElementById('multi-streams');
-            const MAX_MULTI    = 4;
+            const multiAddBtn    = document.getElementById('multi-add');
+            const MAX_MULTI      = 4;
 
-            if (!picker || !multiContainer) return;
+            // 1) Main stream switching for THIS game
+            if (picker && mainIframe) {
+                picker.addEventListener('click', function (evt) {
+                    const btn = evt.target.closest('.stream-button');
+                    if (!btn) return;
 
-            function switchMainStream(url, button) {
-                if (mainIframe && url) {
+                    const url = btn.getAttribute('data-embed-url');
+                    if (!url) return;
+
                     mainIframe.src = url;
-                }
-                // update active state
-                picker.querySelectorAll('.stream-button').forEach(b => {
-                    b.classList.toggle('active', b === button);
+
+                    picker.querySelectorAll('.stream-button').forEach(b => {
+                        b.classList.toggle('active', b === btn);
+                    });
                 });
             }
 
-            function addMultiStream(url, label) {
-                if (!url) return;
-                // optional: limit how many multi-view streams
+            // 2) Multi-view for OTHER games
+            if (!multiContainer || !multiAddBtn) return;
+
+            const MAX_SLOTS = MAX_MULTI;
+
+            // Pre-build the <option> list from other_games via Jinja
+            const optionsHtml = `
+                <option value="">Select a game to watch...</option>
+                {% for g in other_games %}
+                    {% if g.streams and g.streams|length > 0 %}
+                        <option value="{{ g.streams[0].embed_url }}"
+                                data-title="{{ (g.matchup or 'Game ' ~ g.id) ~ ' - ' ~ (g.sport or '') }}">
+                            {{ g.matchup or ('Game ' ~ g.id) }}{% if g.sport %} ({{ g.sport }}){% endif %}
+                        </option>
+                    {% endif %}
+                {% endfor %}
+            `;
+
+            function addMultiSlot() {
                 const current = multiContainer.querySelectorAll('.multi-stream-wrapper').length;
-                if (current >= MAX_MULTI) {
-                    alert('Multi-view limit reached (' + MAX_MULTI + ' streams). Close one to add another.');
+                if (current >= MAX_SLOTS) {
+                    alert('Multi-view limit reached (' + MAX_SLOTS + ' streams). Close one to add another.');
                     return;
                 }
 
@@ -488,37 +528,42 @@
 
                 wrapper.innerHTML = `
                     <div class="multi-stream-header">
-                        <div class="multi-stream-title">${label || 'Extra stream'}</div>
+                        <div class="multi-stream-title">No game selected</div>
+                        <select class="multi-stream-select">
+                            ${optionsHtml}
+                        </select>
                         <button class="multi-close" type="button" aria-label="Close stream">✕</button>
                     </div>
-                    <iframe src="${url}" allowfullscreen scrolling="no"></iframe>
+                    <iframe src="" allowfullscreen scrolling="no"></iframe>
                 `;
 
-                // close button
-                wrapper.querySelector('.multi-close').addEventListener('click', () => {
+                const select = wrapper.querySelector('.multi-stream-select');
+                const title  = wrapper.querySelector('.multi-stream-title');
+                const iframe = wrapper.querySelector('iframe');
+                const close  = wrapper.querySelector('.multi-close');
+
+                select.addEventListener('change', () => {
+                    const opt = select.options[select.selectedIndex];
+                    const url = opt.value;
+                    const t   = opt.getAttribute('data-title') || 'Extra stream';
+
+                    if (url) {
+                        iframe.src = url;
+                        title.textContent = t;
+                    } else {
+                        iframe.src = '';
+                        title.textContent = 'No game selected';
+                    }
+                });
+
+                close.addEventListener('click', () => {
                     wrapper.remove();
                 });
 
                 multiContainer.appendChild(wrapper);
             }
 
-            picker.addEventListener('click', function (evt) {
-                const watchBtn = evt.target.closest('.stream-button');
-                const addBtn   = evt.target.closest('.stream-add-button');
-
-                if (watchBtn) {
-                    const url = watchBtn.getAttribute('data-embed-url');
-                    switchMainStream(url, watchBtn);
-                    return;
-                }
-
-                if (addBtn) {
-                    const url   = addBtn.getAttribute('data-embed-url');
-                    const label = addBtn.getAttribute('data-label');
-                    addMultiStream(url, label);
-                    return;
-                }
-            });
+            multiAddBtn.addEventListener('click', addMultiSlot);
         })();
     </script>
 </body>

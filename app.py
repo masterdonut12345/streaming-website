@@ -162,8 +162,13 @@ def game_detail(game_id):
     print(f"[game_detail]  matchup={game.get('matchup')}")
     print(f"[game_detail]  streams={game.get('streams')}")
 
-    # Just render the game page.
-    return render_template("game.html", game=game)
+    # Other games with at least one stream, for multi-view
+    other_games = [
+        g for g in games
+        if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
+    ]
+
+    return render_template("game.html", game=game, other_games=other_games)
 
 
 # -------------- SCHEDULER SETUP --------------
