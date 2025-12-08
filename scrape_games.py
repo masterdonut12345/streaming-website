@@ -367,8 +367,22 @@ def main() -> None:
         df_sport71["streams"] = df_sport71["watch_url"].apply(get_all_streams_from_watch_page)
         df_sport71["embed_url"] = df_sport71["streams"].apply(first_embed_or_none)
     else:
-        df_sport71["streams"] = []
-        df_sport71["embed_url"] = None
+        # keep it as a valid (but empty) DataFrame with the expected columns
+        df_sport71 = pd.DataFrame(
+            columns=[
+                "source",
+                "date_header",
+                "sport",
+                "time_unix",
+                "time",
+                "tournament",
+                "tournament_url",
+                "matchup",
+                "watch_url",
+                "streams",
+                "embed_url",
+            ]
+        )
 
     # 2) sharkstreams games (already come with streams + embed_url)
     df_shark = scrape_today_games_shark()
@@ -381,8 +395,19 @@ def main() -> None:
     else:
         df = df_shark
 
+    # --- normalize sport names so grouping is consistent ---
+    #   - NBA → Basketball
+    #   - American Football → NFL
+    if not df.empty and "sport" in df.columns:
+        sport_map = {
+            "NBA": "Basketball",
+            "American Football": "NFL",
+        }
+        df["sport"] = df["sport"].replace(sport_map)
+    # -------------------------------------------------------
+
     if df.empty:
-        print("[main] No rows found for today from any source; nothing to do.")
+        print("[main] No rows found from any source; nothing to do.")
         return
 
     print("[main] Combined rows:", len(df))
@@ -392,7 +417,6 @@ def main() -> None:
     output_file = "today_games_with_all_streams.csv"
     df.to_csv(output_file, index=False)
     print(f"[main] Wrote {len(df)} rows to {output_file}")
-
 
 if __name__ == "__main__":
     main()
