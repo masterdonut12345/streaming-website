@@ -93,7 +93,7 @@
             color: var(--muted);
         }
 
-        /* social links row under tagline */
+        /* social links row (used in footer now) */
         .social-row {
             margin-top: 8px;
             display: flex;
@@ -397,6 +397,25 @@
                 display: none;
             }
         }
+
+        /* footer */
+        footer {
+            margin-top: 20px;
+            padding: 12px 20px 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(3, 3, 8, 0.9);
+        }
+
+        footer .footer-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        footer p {
+            margin: 0 0 6px 0;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body>
@@ -407,16 +426,6 @@
                 <div class="header-text">
                     <h1>Today's Games</h1>
                     <p class="tagline">Live schedules, matchups, and tournament info.</p>
-
-                    <div class="social-row">
-                        <span class="social-label">Follow:</span>
-                        <a class="social-link" href="https://x.com/thestreamden" target="_blank" rel="noopener">
-                            𝕏 <span class="handle">@TheStreamDen</span>
-                        </a>
-                        <a class="social-links" href="https://x.com/CWILL18MVP" target="_blank" rel="noopener">
-                            <span class="handle">@CWILL18MVP</span>
-                        </a>
-                    </div>
                 </div>
 
                 <div class="ad-slot-top-right">
@@ -533,6 +542,21 @@
           src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
         ></script>
     </div>
+
+    <!-- Footer with social links at the very bottom -->
+    <footer>
+        <div class="footer-inner">
+            <p>Follow TheStreamDen:</p>
+            <div class="social-row">
+                <a class="social-link" href="https://x.com/thestreamden" target="_blank" rel="noopener">
+                    𝕏 <span class="handle">@TheStreamDen</span>
+                </a>
+                <a class="social-link" href="https://x.com/CWILL18MVP" target="_blank" rel="noopener">
+                    Main social: <span class="handle">@CWILL18MVP</span>
+                </a>
+            </div>
+        </div>
+    </footer>
 
     <script>
         // Make each sport-section collapsible
