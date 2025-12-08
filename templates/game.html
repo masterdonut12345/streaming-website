@@ -84,7 +84,7 @@
             gap: 20px;
         }
 
-        /* FIXED: tighten ad box to the actual 320x50 size */
+        /* fixed 320x50 ad box on the left */
         .ad-slot-left {
             flex: 0 0 auto;
             width: 320px;
@@ -95,7 +95,6 @@
             overflow: hidden;
         }
 
-        /* Force the ad iframe to fill the box (no extra white space) */
         .ad-slot-left iframe {
             width: 100% !important;
             height: 100% !important;
@@ -205,11 +204,18 @@
         .stream-picker {
             margin-top: 12px;
             display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .stream-button {
+        .stream-option {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .stream-button,
+        .stream-add-button {
             padding: 7px 14px;
             border-radius: 999px;
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -227,7 +233,8 @@
                 box-shadow 0.15s ease;
         }
 
-        .stream-button:hover {
+        .stream-button:hover,
+        .stream-add-button:hover {
             background: var(--button-hover);
             border-color: rgba(122, 162, 255, 0.7);
             transform: translateY(-1px);
@@ -240,6 +247,11 @@
             border-color: var(--accent);
             font-weight: 600;
             box-shadow: 0 14px 30px rgba(122, 162, 255, 0.5);
+        }
+
+        .stream-add-button {
+            font-size: 0.78rem;
+            opacity: 0.9;
         }
 
         .ad-slot {
@@ -255,6 +267,66 @@
             border: 1px dashed rgba(122, 162, 255, 0.4);
             color: var(--muted);
             font-size: 0.95rem;
+        }
+
+        /* MULTI-VIEW AREA */
+        .multi-view-title {
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            color: var(--muted);
+        }
+
+        .multi-streams {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .multi-stream-wrapper {
+            flex: 1 1 48%;
+            min-width: 260px;
+            background: rgba(5, 5, 12, 0.95);
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+        }
+
+        .multi-stream-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            background: radial-gradient(circle at left, rgba(122, 162, 255, 0.25), transparent);
+        }
+
+        .multi-stream-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .multi-close {
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            font-size: 1rem;
+            padding: 0 4px;
+        }
+
+        .multi-close:hover {
+            color: #ff7b72;
+        }
+
+        .multi-stream-wrapper iframe {
+            width: 100%;
+            height: 260px;
+            border: none;
+            border-radius: 0 0 14px 14px;
         }
     </style>
 </head>
@@ -327,6 +399,7 @@
             <div class="player-card">
                 <h3>Live Stream</h3>
 
+                <!-- Main player -->
                 <iframe
                     id="game-iframe"
                     src="{{ first_stream.embed_url }}"
@@ -334,18 +407,37 @@
                     scrolling="no">
                 </iframe>
 
+                <!-- Stream buttons + multi-view buttons -->
                 <div class="stream-picker" id="stream-picker">
                     {% for s in game.streams %}
-                        <button
-                            type="button"
-                            class="stream-button {% if loop.first %}active{% endif %}"
-                            data-embed-url="{{ s.embed_url }}"
-                        >
-                            {{ s.label or ('Stream ' ~ loop.index) }}
-                        </button>
+                        <div class="stream-option">
+                            <button
+                                type="button"
+                                class="stream-button {% if loop.first %}active{% endif %}"
+                                data-embed-url="{{ s.embed_url }}"
+                                data-label="{{ s.label or ('Stream ' ~ loop.index) }}"
+                            >
+                                {{ s.label or ('Stream ' ~ loop.index) }}
+                            </button>
+                            <button
+                                type="button"
+                                class="stream-add-button"
+                                data-embed-url="{{ s.embed_url }}"
+                                data-label="{{ s.label or ('Stream ' ~ loop.index) }}"
+                            >
+                                ➕ Multi-view
+                            </button>
+                        </div>
                     {% endfor %}
                 </div>
 
+                <!-- Multi-view area -->
+                <div class="multi-view-title">
+                    Open extra streams in multi-view (up to 4 at once):
+                </div>
+                <div class="multi-streams" id="multi-streams"></div>
+
+                <!-- Ad under player -->
                 <div class="ad-slot">
                     <script
                       async="async"
@@ -365,22 +457,67 @@
 
     <script>
         (function() {
-            const iframe = document.getElementById('game-iframe');
-            const picker = document.getElementById('stream-picker');
-            if (!iframe || !picker) return;
+            const mainIframe   = document.getElementById('game-iframe');
+            const picker       = document.getElementById('stream-picker');
+            const multiContainer = document.getElementById('multi-streams');
+            const MAX_MULTI    = 4;
+
+            if (!picker || !multiContainer) return;
+
+            function switchMainStream(url, button) {
+                if (mainIframe && url) {
+                    mainIframe.src = url;
+                }
+                // update active state
+                picker.querySelectorAll('.stream-button').forEach(b => {
+                    b.classList.toggle('active', b === button);
+                });
+            }
+
+            function addMultiStream(url, label) {
+                if (!url) return;
+                // optional: limit how many multi-view streams
+                const current = multiContainer.querySelectorAll('.multi-stream-wrapper').length;
+                if (current >= MAX_MULTI) {
+                    alert('Multi-view limit reached (' + MAX_MULTI + ' streams). Close one to add another.');
+                    return;
+                }
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'multi-stream-wrapper';
+
+                wrapper.innerHTML = `
+                    <div class="multi-stream-header">
+                        <div class="multi-stream-title">${label || 'Extra stream'}</div>
+                        <button class="multi-close" type="button" aria-label="Close stream">✕</button>
+                    </div>
+                    <iframe src="${url}" allowfullscreen scrolling="no"></iframe>
+                `;
+
+                // close button
+                wrapper.querySelector('.multi-close').addEventListener('click', () => {
+                    wrapper.remove();
+                });
+
+                multiContainer.appendChild(wrapper);
+            }
 
             picker.addEventListener('click', function (evt) {
-                const btn = evt.target.closest('.stream-button');
-                if (!btn) return;
+                const watchBtn = evt.target.closest('.stream-button');
+                const addBtn   = evt.target.closest('.stream-add-button');
 
-                const url = btn.getAttribute('data-embed-url');
-                if (!url) return;
+                if (watchBtn) {
+                    const url = watchBtn.getAttribute('data-embed-url');
+                    switchMainStream(url, watchBtn);
+                    return;
+                }
 
-                iframe.src = url;
-
-                picker.querySelectorAll('.stream-button').forEach(b => {
-                    b.classList.toggle('active', b === btn);
-                });
+                if (addBtn) {
+                    const url   = addBtn.getAttribute('data-embed-url');
+                    const label = addBtn.getAttribute('data-label');
+                    addMultiStream(url, label);
+                    return;
+                }
             });
         })();
     </script>
