@@ -3,41 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <title>Today's Games</title>
+
+    <!-- Modern font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    >
+
     <style>
         :root {
-            --bg: #000;
+            --bg: #050508;
+            --bg-alt: #050509;
             --text: #f5f5f5;
             --muted: #b8b8b8;
             --accent: #7aa2ff;
+            --accent-soft: rgba(122, 162, 255, 0.16);
             --border: #222;
-            --surface: #0b0b0b;
-            --surface-2: #121212;
-            --input-bg: #0f0f0f;
+            --surface: #0b0b10;
+            --surface-2: #12121a;
+            --input-bg: #0f0f15;
+            --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.65);
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            font-family: sans-serif;
-            margin: 20px;
-            background: var(--bg);
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background:
+                radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
             color: var(--text);
+        }
+
+        .page-wrapper {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
+        }
+
+        /* give room for fixed ad on big screens */
+        @media (min-width: 1100px) {
+            .page-wrapper {
+                margin-right: 220px;
+            }
+        }
+
+        header {
+            border-radius: 20px;
+            padding: 18px 20px;
+            margin-bottom: 18px;
+            background:
+                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
+            border: 1px solid rgba(122, 162, 255, 0.25);
+            box-shadow: var(--shadow-soft);
         }
 
         /* header layout: title on left, ad on right */
         .header-container {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 10px;
+            align-items: center;
+            gap: 20px;
         }
 
-        h1, h2 {
-            margin: 0;
-            color: var(--text);
+        h1 {
+            margin: 0 0 4px 0;
+            font-size: 2.1rem;
+            letter-spacing: 0.03em;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.25rem;
         }
 
         .header-text {
             flex: 1 1 auto;
+        }
+
+        .tagline {
+            margin: 0;
+            font-size: 0.95rem;
+            color: var(--muted);
         }
 
         .ad-slot-top-right {
@@ -52,75 +104,156 @@
                 align-items: flex-start;
             }
             .ad-slot-top-right {
-                text-align: center;
+                text-align: left;
+                width: 100%;
             }
         }
 
         /* search bar */
         .search-bar {
-            margin: 10px 0 20px 0;
+            margin: 18px 0 26px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(5, 5, 12, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
         }
+
         .search-bar input[type="text"] {
-            padding: 8px 10px;
-            font-size: 1rem;
-            width: 260px;
-            max-width: 80%;
+            flex: 1 1 220px;
+            padding: 9px 11px;
+            font-size: 0.95rem;
             background: var(--input-bg);
             color: var(--text);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 999px;
             outline: none;
+            transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
         }
+
         .search-bar input[type="text"]::placeholder {
             color: #8a8a8a;
         }
+
         .search-bar input[type="text"]:focus {
-            border-color: #2f4b8f;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(122, 162, 255, 0.7);
+            background: #11111b;
         }
 
         .search-bar button {
-            padding: 8px 12px;
-            font-size: 0.95rem;
+            padding: 8px 14px;
+            font-size: 0.9rem;
             cursor: pointer;
-            margin-left: 4px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
             background: var(--surface-2);
             color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-        }
-        .search-bar button:hover {
-            background: #1a1a1a;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
         }
 
-        .sport-section { margin-bottom: 30px; }
+        .search-bar button:hover {
+            background: #191925;
+            border-color: rgba(122, 162, 255, 0.7);
+            transform: translateY(-1px);
+        }
+
+        .search-bar button[type="button"] {
+            background: transparent;
+            color: var(--muted);
+        }
+
+        .search-bar button[type="button"]:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .sport-section {
+            margin-bottom: 28px;
+        }
+
+        .sport-section h2 {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding-left: 10px;
+            border-left: 3px solid var(--accent);
+            color: var(--text);
+            opacity: 0.95;
+        }
+
+        .sport-section h2::after {
+            content: "";
+            height: 1px;
+            flex: 1 1 auto;
+            margin-left: 10px;
+            background: linear-gradient(to right, rgba(122, 162, 255, 0.6), transparent);
+            opacity: 0.4;
+        }
 
         .game-card {
-            border: 1px solid var(--border);
-            background: var(--surface);
-            padding: 12px 15px;
-            margin: 8px 0;
-            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.09), var(--surface));
+            padding: 14px 16px;
+            margin: 10px 0;
+            border-radius: 14px;
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.65);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.2s ease;
+        }
+
+        .game-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.9);
+            border-color: rgba(122, 162, 255, 0.7);
+            background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.12), #0b0b12);
         }
 
         .game-title {
-            font-weight: bold;
-            font-size: 1.1em;
+            font-weight: 600;
+            font-size: 1.03em;
+            margin-bottom: 4px;
         }
 
         a {
             text-decoration: none;
             color: var(--accent);
+            transition: color 0.15s ease, text-shadow 0.18s ease;
         }
-        a:hover { text-decoration: underline; }
+        a:hover {
+            color: #a4bcff;
+            text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
+        }
 
         .meta {
-            font-size: 0.9em;
+            font-size: 0.88em;
             color: var(--muted);
             margin-top: 6px;
-            line-height: 1.35;
+            line-height: 1.45;
         }
 
-        /* Fixed right-side vertical ad so it doesn't push content down */
+        .meta strong {
+            color: #d0d0d0;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            margin-top: 40px;
+            padding: 18px 16px;
+            border-radius: 14px;
+            background: rgba(10, 10, 16, 0.9);
+            border: 1px dashed rgba(122, 162, 255, 0.4);
+            color: var(--muted);
+            text-align: center;
+            font-size: 0.95rem;
+        }
+
+        /* Fixed right-side vertical ad (does NOT push content down) */
         .vertical-ad-fixed {
             position: fixed;
             top: 120px;  /* just below the header */
@@ -128,6 +261,9 @@
             width: 160px;
             height: 600px;
             z-index: 100;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85);
         }
 
         /* Hide the tall skyscraper on smaller screens */
@@ -139,45 +275,87 @@
     </style>
 </head>
 <body>
-    <!-- Header with title on left, 728x90 ad on right -->
-    <div class="header-container">
-        <div class="header-text">
-            <h1>Today's Games</h1>
-        </div>
+    <div class="page-wrapper">
+        <!-- Header with title on left, 728x90 ad on right -->
+        <header>
+            <div class="header-container">
+                <div class="header-text">
+                    <h1>Today's Games</h1>
+                    <p class="tagline">Live schedules, matchups, and tournament info in one clean view.</p>
+                </div>
 
-        <div class="ad-slot-top-right">
-            <!-- 728x90 banner -->
-            <script type="text/javascript">
-              atOptions = {
-              	'key' : '404cd50590d1227fb3038749119d5034',
-              	'format' : 'iframe',
-              	'height' : 90,
-              	'width' : 728,
-              	'params' : {}
-              };
-            </script>
-            <script
-              type="text/javascript"
-              src="//www.highperformanceformat.com/404cd50590d1227fb3038749119d5034/invoke.js"
-            ></script>
-        </div>
-    </div>
+                <div class="ad-slot-top-right">
+                    <!-- 728x90 banner -->
+                    <script type="text/javascript">
+                      atOptions = {
+                      	'key' : '404cd50590d1227fb3038749119d5034',
+                      	'format' : 'iframe',
+                      	'height' : 90,
+                      	'width' : 728,
+                      	'params' : {}
+                      };
+                    </script>
+                    <script
+                      type="text/javascript"
+                      src="//www.highperformanceformat.com/404cd50590d1227fb3038749119d5034/invoke.js"
+                    ></script>
+                </div>
+            </div>
+        </header>
 
-    <!-- Search bar -->
-    <form class="search-bar" method="get" action="{{ url_for('index') }}">
-        <input
-            type="text"
-            name="q"
-            placeholder="Search by team, sport, or tournament..."
-            value="{{ search_query or '' }}"
-        >
-        <button type="submit">Search</button>
-        {% if search_query %}
-            <button type="button" onclick="window.location='{{ url_for('index') }}'">
-                Clear
+        <!-- Search bar -->
+        <form class="search-bar" method="get" action="{{ url_for('index') }}">
+            <input
+                type="text"
+                name="q"
+                placeholder="Search by team, sport, or tournament..."
+                value="{{ search_query or '' }}"
+            >
+            <button type="submit">
+                🔍 Search
             </button>
+            {% if search_query %}
+                <button type="button" onclick="window.location='{{ url_for('index') }}'">
+                    ✖ Clear
+                </button>
+            {% endif %}
+        </form>
+
+        {% if sections %}
+            {% for section in sections %}
+                <div class="sport-section">
+                    <h2>{{ section.sport }}</h2>
+
+                    {% for game in section.games %}
+                        <div class="game-card">
+                            <div class="game-title">
+                                <a href="{{ url_for('game_detail', game_id=game.id) }}">
+                                    {{ game.matchup }}
+                                </a>
+                            </div>
+                            <div class="meta">
+                                <strong>Tournament:</strong> {{ game.tournament or 'N/A' }}<br>
+                                {% if game.time %}
+                                    <strong>Time:</strong> {{ game.time }}
+                                {% else %}
+                                    <strong>Time (unix):</strong> {{ game.time_unix or 'N/A' }}
+                                {% endif %}<br>
+                                <strong>Date:</strong> {{ game.date_header or 'Today' }}<br>
+                                {% if game.tournament_url %}
+                                    <a href="{{ game.tournament_url }}" target="_blank">View tournament page ↗</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                No games found{% if search_query %} for "<strong>{{ search_query }}</strong>"{% endif %}.
+                Try another team, league, or tournament.
+            </div>
         {% endif %}
-    </form>
+    </div>
 
     <!-- Fixed right-side 160x600 ad (does NOT push content down) -->
     <div class="vertical-ad-fixed">
@@ -195,38 +373,6 @@
           src="//www.highperformanceformat.com/29ef845582924216c628b8930841e3bb/invoke.js"
         ></script>
     </div>
-
-    {% if sections %}
-        {% for section in sections %}
-            <div class="sport-section">
-                <h2>{{ section.sport }}</h2>
-
-                {% for game in section.games %}
-                    <div class="game-card">
-                        <div class="game-title">
-                            <a href="{{ url_for('game_detail', game_id=game.id) }}">
-                                {{ game.matchup }}
-                            </a>
-                        </div>
-                        <div class="meta">
-                            Tournament: {{ game.tournament or 'N/A' }}<br>
-                            {% if game.time %}
-                                Time: {{ game.time }}
-                            {% else %}
-                                Time (unix): {{ game.time_unix or 'N/A' }}
-                            {% endif %}<br>
-                            Date header: {{ game.date_header or 'Today' }}<br>
-                            {% if game.tournament_url %}
-                                <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endfor %}
-    {% else %}
-        <p>No games found{% if search_query %} for "{{ search_query }}"{% endif %}.</p>
-    {% endif %}
 
     <!-- Popunder script -->
     <script
