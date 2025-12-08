@@ -86,7 +86,7 @@
             gap: 20px;
         }
 
-        /* ad now on the FAR LEFT */
+        /* ad on the FAR LEFT */
         .ad-slot-left {
             flex: 0 0 auto;
             max-width: 320px;
@@ -307,7 +307,12 @@
             </div>
         </header>
 
-        {% set first_stream = (game.streams[0] if game.streams else None) %}
+        {# safer: only set first_stream if game.streams exists and has elements #}
+        {% if game.streams and game.streams|length > 0 %}
+            {% set first_stream = game.streams[0] %}
+        {% else %}
+            {% set first_stream = None %}
+        {% endif %}
 
         {% if first_stream %}
             <div class="player-card">
@@ -338,4 +343,48 @@
                     <script
                       async="async"
                       data-cfasync="false"
-                      src="//pl28213
+                      src="//pl28213154.effectivegatecpm.com/ced6c8c8dbe2168bf17b0ffaa1cf5474/invoke.js"
+                    ></script>
+                    <div id="container-ced6c8c8dbe2168bf17b0ffaa1cf5474"></div>
+                </div>
+            </div>
+        {% else %}
+            <div class="no-stream">
+                <strong>No embed URL available for this game.</strong><br>
+                Check back closer to game time or try another stream.
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // simple JS to swap iframe URL when a button is clicked
+        (function() {
+            const iframe = document.getElementById('game-iframe');
+            const picker = document.getElementById('stream-picker');
+            if (!iframe || !picker) return;
+
+            picker.addEventListener('click', function (evt) {
+                const btn = evt.target.closest('.stream-button');
+                if (!btn) return;
+
+                const url = btn.getAttribute('data-embed-url');
+                if (!url) return;
+
+                // update iframe
+                iframe.src = url;
+
+                // update active state
+                picker.querySelectorAll('.stream-button').forEach(b => {
+                    b.classList.toggle('active', b === btn);
+                });
+            });
+        })();
+    </script>
+
+    <!-- Social bar script (typically floats on the page) -->
+    <script
+      type="text/javascript"
+      src="//pl28213198.effectivegatecpm.com/0f/a2/4c/0fa24c36bd8ef534a07b2aebe1ba89c3.js"
+    ></script>
+</body>
+</html>
