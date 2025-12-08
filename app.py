@@ -1,10 +1,8 @@
-
-from flask import Flask, render_template, abort, redirect, request
+from flask import Flask, render_template, abort, request
 import pandas as pd
 import ast
 import os
 import random
-
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 
@@ -14,6 +12,11 @@ import scrape_games  # our scraper module
 DATA_PATH = "today_games_with_all_streams.csv"
 
 app = Flask(__name__)
+
+
+def safe_lower(value):
+    """Safely lowercase strings; return '' for non-strings (e.g. NaN, None)."""
+    return value.lower() if isinstance(value, str) else ""
 
 
 def load_games():
@@ -108,9 +111,9 @@ def index():
     if q:
         filtered = []
         for g in games:
-            matchup = (g.get("matchup") or "").lower()
-            sport = (g.get("sport") or "").lower()
-            tournament = (g.get("tournament") or "").lower()
+            matchup = safe_lower(g.get("matchup"))
+            sport = safe_lower(g.get("sport"))
+            tournament = safe_lower(g.get("tournament"))
 
             if q in matchup or q in sport or q in tournament:
                 filtered.append(g)
@@ -142,9 +145,8 @@ def game_detail(game_id):
     print(f"[game_detail]  matchup={game.get('matchup')}")
     print(f"[game_detail]  streams={game.get('streams')}")
     if random.random() < 0.4:
-        return redirect("https://www.effectivegatecpm.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df")
+        return request("https://www.effectivegatecpm.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df")
     # Just render the game page.
-    # If you want an internal sponsor/interstitial page, we can wire that up safely.
     return render_template("game.html", game=game)
 
 
