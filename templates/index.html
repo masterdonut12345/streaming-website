@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Today's Games</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { margin-bottom: 10px; }
+        .sport-section { margin-bottom: 30px; }
+        .game-card {
+            border: 1px solid #ddd;
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 6px;
+        }
+        .game-title {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        a { text-decoration: none; color: #007bff; }
+        a:hover { text-decoration: underline; }
+        .meta { font-size: 0.9em; color: #555; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Today's Games</h1>
+
+    {% if sections %}
+        {% for section in sections %}
+            <div class="sport-section">
+                <h2>{{ section.sport }}</h2>
+
+                {% for game in section.games %}
+                    <div class="game-card">
+                        <div class="game-title">
+                            <a href="{{ url_for('game_detail', game_id=game.id) }}">
+                                {{ game.matchup }}
+                            </a>
+                        </div>
+                        <div class="meta">
+                            Tournament: {{ game.tournament or 'N/A' }}<br>
+                            {% if game.time %}
+                                Time: {{ game.time }}
+                            {% else %}
+                                Time (unix): {{ game.time_unix or 'N/A' }}
+                            {% endif %}<br>
+                            Date header: {{ game.date_header or 'Today' }}<br>
+                            {% if game.tournament_url %}
+                                <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No games found for today.</p>
+    {% endif %}
+</body>
+</html>

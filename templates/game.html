@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ game.matchup }} - {{ game.sport }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        a { text-decoration: none; color: #007bff; }
+        a:hover { text-decoration: underline; }
+        .meta { margin-top: 10px; font-size: 0.95em; color: #555; }
+        iframe {
+            width: 100%;
+            max-width: 900px;
+            height: 500px;
+            border: none;
+        }
+
+        /* simple stream picker styles */
+        .stream-picker {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .stream-button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #f8f9fa;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .stream-button.active {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <p><a href="{{ url_for('index') }}">&larr; Back to today’s games</a></p>
+
+    <h1>{{ game.matchup }}</h1>
+    <h2>{{ game.sport }}</h2>
+
+    <div class="meta">
+        <p>
+            <strong>Tournament:</strong>
+            {{ game.tournament or 'N/A' }}
+            {% if game.tournament_url %}
+                &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page</a>
+            {% endif %}
+        </p>
+        <p>
+            <strong>Date header:</strong> {{ game.date_header or 'Today' }}<br>
+            {% if game.time %}
+                <strong>Time:</strong> {{ game.time }}
+            {% elif game.time_unix %}
+                <strong>Time (unix):</strong> {{ game.time_unix }}
+            {% endif %}
+        </p>
+    </div>
+
+    {% set first_stream = (game.streams[0] if game.streams else None) %}
+
+    {% if first_stream %}
+        <h3>Live Stream</h3>
+        <iframe
+            id="game-iframe"
+            src="{{ first_stream.embed_url }}"
+            allowfullscreen
+            scrolling="no">
+        </iframe>
+
+        <!-- Stream buttons -->
+        <div class="stream-picker" id="stream-picker">
+            {% for s in game.streams %}
+                <button
+                    type="button"
+                    class="stream-button {% if loop.first %}active{% endif %}"
+                    data-embed-url="{{ s.embed_url }}"
+                >
+                    {{ s.label or ('Stream ' ~ loop.index) }}
+                </button>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p><strong>No embed URL available for this game.</strong></p>
+    {% endif %}
+
+    <script>
+        // simple JS to swap iframe URL when a button is clicked
+        (function() {
+            const iframe = document.getElementById('game-iframe');
+            const picker = document.getElementById('stream-picker');
+            if (!iframe || !picker) return;
+
+            picker.addEventListener('click', function (evt) {
+                const btn = evt.target.closest('.stream-button');
+                if (!btn) return;
+
+                const url = btn.getAttribute('data-embed-url');
+                if (!url) return;
+
+                // update iframe
+                iframe.src = url;
+
+                // update active state
+                picker.querySelectorAll('.stream-button').forEach(b => {
+                    b.classList.toggle('active', b === btn);
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

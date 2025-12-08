@@ -1,0 +1,7 @@
+Flask==3.1.2
+gunicorn
+requests
+beautifulsoup4
+pandas
+APScheduler
+lxml
