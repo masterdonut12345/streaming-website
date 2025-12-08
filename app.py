@@ -1,7 +1,8 @@
-from flask import Flask, render_template, abort
+from flask import Flask, render_template, abort, redirect
 import pandas as pd
 import ast
 import os
+import random
 
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
@@ -126,6 +127,8 @@ def game_detail(game_id):
     print(f"[game_detail]  matchup={game.get('matchup')}")
     print(f"[game_detail]  streams={game.get('streams')}")
 
+    if random.random() < 0.1:
+        return redirect("https://www.effectivegatecpm.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df")
     return render_template("game.html", game=game)
 
 

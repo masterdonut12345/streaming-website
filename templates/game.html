@@ -7,12 +7,27 @@
         body { font-family: sans-serif; margin: 20px; }
         a { text-decoration: none; color: #007bff; }
         a:hover { text-decoration: underline; }
-        .meta { margin-top: 10px; font-size: 0.95em; color: #555; }
+
+        /* Reduce space below meta data */
+        .meta { 
+            margin-top: 5px;
+            margin-bottom: 5px;
+            font-size: 0.95em; 
+            color: #555; 
+        }
+
+        /* Remove extra spacing before the player */
+        h3 {
+            margin-top: 5px;   /* was big by default */
+            margin-bottom: 5px;
+        }
+
         iframe {
             width: 100%;
             max-width: 900px;
             height: 500px;
             border: none;
+            margin-top: 0; /* ensure no added gap */
         }
 
         /* header layout: text on left, ad on right */
@@ -21,6 +36,7 @@
             justify-content: space-between;
             align-items: flex-start;
             gap: 16px;
+            margin-bottom: 5px; /* tighten header-to-content spacing */
         }
 
         .header-text {
@@ -31,7 +47,8 @@
         .ad-slot-top-right {
             flex: 0 0 auto;
             text-align: right;
-            max-width: 320px; /* 320x50 banner */
+            max-width: 320px;
+            margin-top: 0;
         }
 
         /* generic ad slot (e.g., below player) */
@@ -50,9 +67,9 @@
             }
         }
 
-        /* simple stream picker styles */
+        /* stream picker */
         .stream-picker {
-            margin-top: 15px;
+            margin-top: 8px;  /* reduced */
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -122,6 +139,7 @@
 
     {% if first_stream %}
         <h3>Live Stream</h3>
+
         <iframe
             id="game-iframe"
             src="{{ first_stream.embed_url }}"
@@ -179,5 +197,11 @@
             });
         })();
     </script>
+
+    <!-- Social bar script (typically floats on the page) -->
+    <script
+      type="text/javascript"
+      src="//pl28213198.effectivegatecpm.com/0f/a2/4c/0fa24c36bd8ef534a07b2aebe1ba89c3.js"
+    ></script>
 </body>
 </html>
