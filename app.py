@@ -1,40 +1,58 @@
-from flask import Flask, render_template, abort, request
+from flask import Flask, render_template, abort, request, session
 import pandas as pd
 import ast
 import os
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+from datetime import datetime, timedelta
+import uuid
 
 import scrape_games  # our scraper module
 
-# Path to your CSV with games + streams
 DATA_PATH = "today_games_with_all_streams.csv"
 
 app = Flask(__name__)
+app.secret_key = "replace_this_with_random"
 
+# ---------------------- ACTIVE VIEWER TRACKER ----------------------
+
+ACTIVE_VIEWERS = {}  # session_id → last_seen timestamp
+
+
+def get_session_id():
+    """Assign each visitor a unique ID if they don't already have one."""
+    if "sid" not in session:
+        session["sid"] = str(uuid.uuid4())
+    return session["sid"]
+
+
+def mark_active():
+    """Mark this session as active and clean out inactive ones."""
+    sid = get_session_id()
+    now = datetime.utcnow()
+    ACTIVE_VIEWERS[sid] = now
+
+    # remove sessions inactive for 2 minutes
+    cutoff = now - timedelta(minutes=2)
+    for s, ts in list(ACTIVE_VIEWERS.items()):
+        if ts < cutoff:
+            del ACTIVE_VIEWERS[s]
+
+
+def print_active_viewers():
+    """Print active viewer count every minute."""
+    count = len(ACTIVE_VIEWERS)
+    print(f"[ACTIVE VIEWERS] Currently active users: {count}")
+
+
+# ---------------------- UTILITIES ----------------------
 
 def safe_lower(value):
-    """Safely lowercase strings; return '' for non-strings (e.g. NaN, None)."""
     return value.lower() if isinstance(value, str) else ""
 
 
 def load_games():
-    """
-    Load games from the CSV and return a list of dicts.
-    Each game dict will have:
-      - id
-      - date_header
-      - sport
-      - time_unix
-      - time
-      - tournament
-      - tournament_url
-      - matchup
-      - watch_url
-      - streams: list of {"label": ..., "embed_url": ...}
-      - is_live: bool (if CSV has an 'is_live' column)
-    """
     if not os.path.exists(DATA_PATH):
         print(f"[load_games] CSV not found at {DATA_PATH}")
         return []
@@ -52,46 +70,28 @@ def load_games():
     games = []
 
     for idx, row in df.iterrows():
-        # --- parse streams column safely ---
         streams = []
         if "streams" in df.columns and pd.notna(row.get("streams")):
             try:
                 parsed = ast.literal_eval(str(row["streams"]))
                 if isinstance(parsed, list):
                     for s in parsed:
-                        if not isinstance(s, dict):
-                            continue
-                        label = s.get("label")
-                        embed_url = s.get("embed_url")
-                        if not embed_url:
-                            continue
-                        streams.append(
-                            {
-                                "label": label,
-                                "embed_url": embed_url,
-                            }
-                        )
-                else:
-                    print(f"[load_games] streams is not a list for row {idx}: {parsed}")
-            except Exception as e:
-                print(f"[load_games] Error parsing streams for row {idx}: {e}")
+                        if isinstance(s, dict) and s.get("embed_url"):
+                            streams.append({
+                                "label": s.get("label"),
+                                "embed_url": s.get("embed_url"),
+                            })
+            except Exception:
                 streams = []
 
-        # pick an id: use 'id' column if it exists, otherwise use the row index
-        if "id" in df.columns and not pd.isna(row.get("id")):
-            game_id = int(row["id"])
-        else:
-            game_id = int(idx)
+        game_id = int(row["id"]) if "id" in df.columns and not pd.isna(row.get("id")) else int(idx)
 
-        # determine live flag if CSV has an is_live column
         is_live = False
         if "is_live" in df.columns:
-            raw_live = row.get("is_live")
-            if pd.notna(raw_live):
-                raw_str = str(raw_live).strip().lower()
-                is_live = raw_str in ("1", "true", "yes", "y", "live")
+            raw = str(row.get("is_live")).lower().strip()
+            is_live = raw in ("1", "true", "yes", "y", "live")
 
-        game = {
+        games.append({
             "id": game_id,
             "date_header": row.get("date_header"),
             "sport": row.get("sport"),
@@ -103,49 +103,39 @@ def load_games():
             "watch_url": row.get("watch_url"),
             "streams": streams,
             "is_live": is_live,
-        }
+        })
 
-        games.append(game)
-
-    print(f"[load_games] Loaded {len(games)} games from CSV.")
+    print(f"[load_games] Loaded {len(games)} games.")
     return games
 
 
+# ---------------------- ROUTES ----------------------
+
 @app.route("/")
 def index():
+    mark_active()
     games = load_games()
 
-    # --- simple search support ---
     q = request.args.get("q", "").strip().lower()
 
     if q:
-        filtered = []
-        for g in games:
-            matchup = safe_lower(g.get("matchup"))
-            sport = safe_lower(g.get("sport"))
-            tournament = safe_lower(g.get("tournament"))
+        games = [
+            g for g in games
+            if q in safe_lower(g.get("matchup"))
+            or q in safe_lower(g.get("sport"))
+            or q in safe_lower(g.get("tournament"))
+        ]
 
-            if q in matchup or q in sport or q in tournament:
-                filtered.append(g)
-        games = filtered
-
-    # live-only filter flag
-    live_only_param = request.args.get("live_only", "").strip().lower()
-    live_only = live_only_param in ("1", "true", "yes", "on")
-
+    live_only = request.args.get("live_only", "").lower() in ("1", "true", "yes", "on")
     if live_only:
         games = [g for g in games if g.get("is_live")]
 
     sections_by_sport = {}
-    for game in games:
-        sport = game.get("sport") or "Other"
-        sections_by_sport.setdefault(sport, []).append(game)
+    for g in games:
+        sport = g.get("sport") or "Other"
+        sections_by_sport.setdefault(sport, []).append(g)
 
-    sections = [
-        {"sport": sport, "games": game_list}
-        for sport, game_list in sections_by_sport.items()
-    ]
-
+    sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
     sections.sort(key=lambda s: s["sport"])
 
     return render_template("index.html", sections=sections, search_query=q, live_only=live_only)
@@ -153,16 +143,14 @@ def index():
 
 @app.route("/game/<int:game_id>")
 def game_detail(game_id):
+    mark_active()
+
     games = load_games()
     game = next((g for g in games if g["id"] == game_id), None)
     if not game:
         abort(404)
 
-    print(f"[game_detail] Game id={game_id}")
-    print(f"[game_detail]  matchup={game.get('matchup')}")
-    print(f"[game_detail]  streams={game.get('streams')}")
-
-    # Other games with at least one stream, for multi-view
+    # Other games with streams (for multi-view)
     other_games = [
         g for g in games
         if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
@@ -171,24 +159,23 @@ def game_detail(game_id):
     return render_template("game.html", game=game, other_games=other_games)
 
 
-# -------------- SCHEDULER SETUP --------------
+# ---------------------- SCHEDULER ----------------------
 
 def run_scraper_job():
-    """Background job that runs the scraper and updates the CSV."""
-    print("[scheduler] Starting scraper job...")
+    print("[scheduler] Running scraper...")
     try:
         scrape_games.main()
-        print("[scheduler] Scraper job completed.")
+        print("[scheduler] Scraper finished.")
     except Exception as e:
-        print(f"[scheduler] Scraper job failed: {e}")
+        print(f"[scheduler] Scraper error: {e}")
 
 
 def start_scheduler():
-    # run once immediately at startup
+    # run scraper immediately on boot
     run_scraper_job()
 
     scheduler = BackgroundScheduler()
-    # run every 5 minutes (adjust if you want)
+
     scheduler.add_job(
         run_scraper_job,
         "interval",
@@ -196,17 +183,24 @@ def start_scheduler():
         id="scrape_job",
         replace_existing=True,
     )
-    scheduler.start()
-    print("[scheduler] Started background scheduler.")
 
+    # print active viewer count every 60 seconds
+    scheduler.add_job(
+        print_active_viewers,
+        "interval",
+        seconds=60,
+        id="active_viewer_job",
+        replace_existing=True,
+    )
+
+    scheduler.start()
+    print("[scheduler] Background scheduler started.")
     atexit.register(lambda: scheduler.shutdown())
 
 
-# Start scheduler on import (avoid double-start in debug)
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     start_scheduler()
 
 
 if __name__ == "__main__":
-    # Local dev
     app.run(host="127.0.0.1", port=5000, debug=True)

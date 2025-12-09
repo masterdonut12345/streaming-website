@@ -54,14 +54,16 @@
             }
         }
 
+        /* === DARK GLASS BLUE HEADER === */
         header {
             border-radius: 20px;
             padding: 18px 20px;
             margin-bottom: 18px;
-            background:
-                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
-            border: 1px solid rgba(122, 162, 255, 0.25);
-            box-shadow: var(--shadow-soft);
+            background: radial-gradient(circle at top left, rgba(64, 117, 255, 0.35), rgba(5, 7, 18, 0.9));
+            border: 1px solid rgba(122, 162, 255, 0.5);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
         /* header layout: title on left, ad on right */
@@ -151,7 +153,7 @@
 
         /* search bar */
         .search-bar {
-            margin: 18px 0 26px 0;
+            margin: 18px 0 18px 0;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -237,22 +239,98 @@
             color: #ffeef2;
         }
 
-        .sport-section {
-            margin-bottom: 16px;
-            border-radius: 14px;
-            background: rgba(5, 5, 12, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.03);
+        /* === NOW PLAYING STRIP === */
+        .now-playing {
+            margin-bottom: 24px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: radial-gradient(circle at top left, rgba(64, 117, 255, 0.3), rgba(5, 5, 18, 0.96));
+            border: 1px solid rgba(122, 162, 255, 0.5);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .now-playing-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .now-playing-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #e0e7ff;
+        }
+
+        .now-playing-subtitle {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .now-playing-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .now-playing-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(4, 7, 20, 0.9);
+            border: 1px solid rgba(159, 180, 255, 0.5);
+            color: #e2e7ff;
+            font-size: 0.8rem;
+            text-decoration: none;
+            max-width: 100%;
             overflow: hidden;
         }
 
-        /* clickable dropdown header for each sport */
+        .now-playing-item:hover {
+            background: rgba(20, 28, 60, 0.95);
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.7);
+        }
+
+        .now-playing-matchup {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 210px;
+        }
+
+        .now-playing-meta {
+            font-size: 0.7rem;
+            color: #c7cffc;
+            opacity: 0.9;
+        }
+
+        .sport-section {
+            margin-bottom: 16px;
+            border-radius: 14px;
+            background: rgba(5, 5, 12, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            overflow: hidden;
+        }
+
+        /* === DARK GLASS SPORT HEADER === */
         .sport-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 10px 12px;
             cursor: pointer;
-            background: radial-gradient(circle at left, rgba(122, 162, 255, 0.12), transparent);
+            background: linear-gradient(135deg, rgba(48, 88, 210, 0.45), rgba(3, 5, 18, 0.95));
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(122, 162, 255, 0.35);
         }
 
         .sport-header-left {
@@ -266,7 +344,7 @@
             height: 32px;
             border-radius: 999px;
             background: linear-gradient(to bottom, var(--accent), transparent);
-            opacity: 0.8;
+            opacity: 0.9;
         }
 
         .sport-title-text {
@@ -299,7 +377,7 @@
         }
 
         .sport-section:hover .sport-header {
-            background: radial-gradient(circle at left, rgba(122, 162, 255, 0.18), rgba(10, 10, 18, 0.95));
+            background: linear-gradient(135deg, rgba(80, 130, 255, 0.5), rgba(5, 8, 24, 0.97));
         }
 
         .sport-body {
@@ -527,6 +605,43 @@
                 <input type="hidden" name="live_only" value="1">
             {% endif %}
         </form>
+
+        {# ==== NOW PLAYING (LIVE GAMES ACROSS ALL SPORTS) ==== #}
+        {% if sections %}
+            {% set ns = namespace(live_games=[]) %}
+            {% for section in sections %}
+                {% for g in section.games %}
+                    {% if g.is_live %}
+                        {% set ns.live_games = ns.live_games + [g] %}
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+
+            {% if ns.live_games %}
+                <section class="now-playing">
+                    <div class="now-playing-header">
+                        <div class="now-playing-title">Now Playing</div>
+                        <div class="now-playing-subtitle">
+                            Showing up to {{ [ns.live_games|length, 5]|min }} live games
+                        </div>
+                    </div>
+                    <div class="now-playing-list">
+                        {% for game in ns.live_games[:5] %}
+                            <a
+                              href="{{ url_for('game_detail', game_id=game.id) }}"
+                              class="now-playing-item"
+                            >
+                                <span class="live-dot"></span>
+                                <span class="now-playing-matchup">{{ game.matchup }}</span>
+                                <span class="now-playing-meta">
+                                    • {{ game.sport or 'Sport' }}{% if game.time %} • {{ game.time }}{% endif %}
+                                </span>
+                            </a>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
+        {% endif %}
 
         {% if sections %}
             {% for section in sections %}
