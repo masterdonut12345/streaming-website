@@ -22,29 +22,27 @@ def scrape_today_games_sport71() -> pd.DataFrame:
     Scrape today's games from sport71.pro and return a DataFrame
     with basic info, including watch_url.
     """
-    print("[sport71] Fetching:", BASE_URL_SPORT71)
     try:
         req = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
     except Exception as e:
-        print("[sport71] Error requesting page:", e)
+        print("[sport71][ERROR] Requesting page failed:", e)
         return pd.DataFrame()
 
     html = req.text
 
     if "Error code 521" in html or req.status_code != 200:
-        print("[sport71] Site returned an error page — cannot scrape upcoming events.")
-        print("[sport71] HTTP status:", req.status_code)
+        print("[sport71][ERROR] Site returned an error page or non-200 status.")
+        print("[sport71][ERROR] HTTP status:", req.status_code)
         return pd.DataFrame()
 
     soup = BeautifulSoup(html, "html.parser")
     section = soup.find("section", id="upcoming-events")
     if not section:
-        print("[sport71] Could not find <section id='upcoming-events'> — page may be JS-rendered.")
+        print("[sport71][ERROR] Could not find <section id='upcoming-events'> — page may be JS-rendered.")
         return pd.DataFrame()
 
     today = datetime.now()
     today_str = f"{today.strftime('%A')}, {today.strftime('%B')} {today.day}, {today.year}"
-    print("[sport71] Looking for games on:", today_str)
 
     rows = []
 
@@ -84,6 +82,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                     try:
                         event_dt = datetime.fromtimestamp(int(unix_time) / 1000)
                     except Exception:
+                        # bad timestamp, just leave event_dt as None
                         event_dt = None
 
                 # tournament
@@ -122,7 +121,6 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 )
 
     df = pd.DataFrame(rows)
-    print(f"[sport71] Found {len(df)} games for today.")
     return df
 
 
@@ -133,38 +131,21 @@ def scrape_today_games_shark() -> pd.DataFrame:
     Scrape games from sharkstreams.net homepage and return
     a DataFrame with the same columns as sport71, including a
     'streams' list and 'embed_url' prefilled.
-
-    This version:
-      - Uses the .ch-date, .ch-category, .ch-name, and .hd-link
-        elements present in the current HTML.
-      - Does NOT filter out games based on today's date; it
-        simply returns everything the homepage shows.
     """
-    print("[shark] Fetching:", BASE_URL_SHARK)
     try:
         req = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
     except Exception as e:
-        print("[shark] Error requesting page:", e)
+        print("[shark][ERROR] Requesting page failed:", e)
         return pd.DataFrame()
 
     if req.status_code != 200:
-        print("[shark] Non-200 HTTP status:", req.status_code)
+        print("[shark][ERROR] Non-200 HTTP status:", req.status_code)
         return pd.DataFrame()
 
     soup = BeautifulSoup(req.text, "html.parser")
 
     rows: List[Dict[str, Any]] = []
 
-    # Each channel row looks like:
-    # <div class="row">
-    #   <span class="ch-date">2025-12-07 13:00:00</span> -
-    #   <span class="ch-category">NFL</span><br>
-    #   <span class="ch-name">Cincinnati Bengals vs Buffalo Bills</span>
-    #   ...
-    #   <a class="hd-link" onclick="...openEmbed('https://sharkstreams.net/player.php?channel=XXX')">
-    #       Embed
-    #   </a>
-    # </div>
     for row_div in soup.find_all("div", class_="row"):
         # date/time
         date_span = row_div.find("span", class_="ch-date")
@@ -176,7 +157,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
             # Example: "2025-12-07 13:00:00"
             event_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         except Exception:
-            print(f"[shark] Failed to parse date: {date_str}")
+            print(f"[shark][ERROR] Failed to parse date: {date_str}")
             continue
 
         # category (sport)
@@ -190,7 +171,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
         # mark SharkStreams entries as alternative links
         matchup = f"{raw_matchup} (alternative)"
 
-        # "Embed" button – URL is inside onclick="openEmbed('https://sharkstreams.net/player.php?channel=8')"
+        # "Embed" button – URL is inside onclick="openEmbed('https://sharkstreams.net/player.php?channel=XXX')"
         embed_link = None
         for a in row_div.find_all("a", class_="hd-link"):
             if "Embed" in a.get_text(strip=True):
@@ -212,7 +193,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
                     break
 
         if not embed_link:
-            print(f"[shark] No embed link found for {matchup}")
+            print(f"[shark][ERROR] No embed link found for matchup: {matchup}")
             continue
 
         # Normalize to absolute URL (in case it isn't already)
@@ -244,8 +225,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows)
-    print(f"[shark] Found {len(df)} games (from SharkStreams homepage).")
     return df
+
 
 def extract_embed_url_from_soup(soup: BeautifulSoup) -> Optional[str]:
     """
@@ -279,11 +260,10 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
     if "sharkstreams.net" in watch_url:
         return []
 
-    print(f"[sport71] [get_all_streams] Fetching watch page: {watch_url}")
     try:
         r = requests.get(watch_url, headers=HEADERS, timeout=15)
         if r.status_code != 200:
-            print("[sport71] [get_all_streams] Non-200 status on base watch URL:", r.status_code)
+            print("[sport71][get_all_streams][ERROR] Non-200 status on base watch URL:", r.status_code)
             return []
 
         soup = BeautifulSoup(r.text, "html.parser")
@@ -313,11 +293,10 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
             label = " ".join(a.stripped_strings) or f"Stream {i}"
 
             try:
-                print(f"[sport71] [get_all_streams]   Fetching stream option: {stream_watch_url}")
                 r2 = requests.get(stream_watch_url, headers=HEADERS, timeout=15)
                 if r2.status_code != 200:
                     print(
-                        "[sport71] [get_all_streams]   Non-200 status on stream URL:",
+                        "[sport71][get_all_streams][ERROR] Non-200 status on stream URL:",
                         stream_watch_url,
                         r2.status_code,
                     )
@@ -326,7 +305,7 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                 soup2 = BeautifulSoup(r2.text, "html.parser")
                 embed_url = extract_embed_url_from_soup(soup2)
                 if not embed_url:
-                    print("[sport71] [get_all_streams]   No embed URL found on stream page.")
+                    print("[sport71][get_all_streams][ERROR] No embed URL found on stream page.")
                     continue
 
                 streams.append(
@@ -337,13 +316,13 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                     }
                 )
             except Exception as e:
-                print("[sport71] [get_all_streams]   Error fetching stream option:", e)
+                print("[sport71][get_all_streams][ERROR] Error fetching stream option:", e)
                 continue
 
         return streams
 
     except Exception as e:
-        print("[sport71] [get_all_streams] Error fetching base watch URL:", e)
+        print("[sport71][get_all_streams][ERROR] Error fetching base watch URL:", e)
         return []
 
 
@@ -356,14 +335,11 @@ def first_embed_or_none(stream_list: List[Dict[str, Any]]) -> Optional[str]:
 # ========= 4) MAIN: COMBINE BOTH SOURCES & WRITE CSV =========
 
 def main() -> None:
-    print("[main] Starting scrape...")
-
     # 1) sport71 games
     df_sport71 = scrape_today_games_sport71()
 
     # if we got any sport71 games, fetch their streams
     if not df_sport71.empty:
-        print("[main] Fetching streams for sport71 games...")
         df_sport71["streams"] = df_sport71["watch_url"].apply(get_all_streams_from_watch_page)
         df_sport71["embed_url"] = df_sport71["streams"].apply(first_embed_or_none)
     else:
@@ -395,28 +371,18 @@ def main() -> None:
     else:
         df = df_shark
 
-    # --- normalize sport names so grouping is consistent ---
-    #   - NBA → Basketball
-    #   - American Football → NFL
-    if not df.empty and "sport" in df.columns:
-        sport_map = {
-            "NBA": "Basketball",
-            "American Football": "NFL",
-        }
-        df["sport"] = df["sport"].replace(sport_map)
-    # -------------------------------------------------------
-
     if df.empty:
-        print("[main] No rows found from any source; nothing to do.")
+        # Not exactly an "error", but if you want *strictly* error-only,
+        # comment this out too.
+        # print("[main][ERROR] No rows found from any source; nothing to write.")
         return
 
-    print("[main] Combined rows:", len(df))
-    print("[main] Sample rows:")
-    print(df.head())
-
     output_file = "today_games_with_all_streams.csv"
-    df.to_csv(output_file, index=False)
-    print(f"[main] Wrote {len(df)} rows to {output_file}")
+    try:
+        df.to_csv(output_file, index=False)
+    except Exception as e:
+        print(f"[main][ERROR] Failed to write CSV to {output_file}:", e)
+
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,6 @@ from flask import Flask, render_template, abort, request, session
 import pandas as pd
 import ast
 import os
-import random
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 from datetime import datetime, timedelta
@@ -46,10 +45,47 @@ def print_active_viewers():
     print(f"[ACTIVE VIEWERS] Currently active users: {count}")
 
 
+@app.before_request
+def track_active_viewer():
+    """Run before every request so we always update activity."""
+    mark_active()
+
+
 # ---------------------- UTILITIES ----------------------
 
 def safe_lower(value):
     return value.lower() if isinstance(value, str) else ""
+
+
+def parse_is_live(row, idx):
+    """
+    Robustly parse live flag from typical CSV forms:
+    - 1, 1.0, True, 'true', 'True', 'live', etc.
+    """
+    if "is_live" not in row.index:
+        return False
+
+    raw = row.get("is_live")
+    if pd.isna(raw):
+        return False
+
+    is_live = False
+
+    # numeric forms like 1, 1.0
+    if isinstance(raw, (int, float)):
+        if raw == 1 or raw == 1.0:
+            is_live = True
+
+    # string forms
+    raw_str = str(raw).strip().lower()
+    if raw_str in ("1", "1.0", "true", "yes", "y", "live", "inplay", "in-play"):
+        is_live = True
+
+    # small debug for first few rows
+    if idx < 5:
+        print(f"[load_games] row {idx} is_live raw={raw!r} parsed={is_live}")
+
+    return is_live
 
 
 def load_games():
@@ -70,6 +106,7 @@ def load_games():
     games = []
 
     for idx, row in df.iterrows():
+        # --- streams ---
         streams = []
         if "streams" in df.columns and pd.notna(row.get("streams")):
             try:
@@ -77,21 +114,25 @@ def load_games():
                 if isinstance(parsed, list):
                     for s in parsed:
                         if isinstance(s, dict) and s.get("embed_url"):
-                            streams.append({
-                                "label": s.get("label"),
-                                "embed_url": s.get("embed_url"),
-                            })
+                            streams.append(
+                                {
+                                    "label": s.get("label"),
+                                    "embed_url": s.get("embed_url"),
+                                }
+                            )
             except Exception:
                 streams = []
 
-        game_id = int(row["id"]) if "id" in df.columns and not pd.isna(row.get("id")) else int(idx)
+        # id
+        if "id" in df.columns and not pd.isna(row.get("id")):
+            game_id = int(row["id"])
+        else:
+            game_id = int(idx)
 
-        is_live = False
-        if "is_live" in df.columns:
-            raw = str(row.get("is_live")).lower().strip()
-            is_live = raw in ("1", "true", "yes", "y", "live")
+        # live flag
+        is_live = parse_is_live(row, idx)
 
-        games.append({
+        game = {
             "id": game_id,
             "date_header": row.get("date_header"),
             "sport": row.get("sport"),
@@ -103,7 +144,9 @@ def load_games():
             "watch_url": row.get("watch_url"),
             "streams": streams,
             "is_live": is_live,
-        })
+        }
+
+        games.append(game)
 
     print(f"[load_games] Loaded {len(games)} games.")
     return games
@@ -113,23 +156,25 @@ def load_games():
 
 @app.route("/")
 def index():
-    mark_active()
     games = load_games()
 
+    # search
     q = request.args.get("q", "").strip().lower()
-
     if q:
         games = [
-            g for g in games
+            g
+            for g in games
             if q in safe_lower(g.get("matchup"))
             or q in safe_lower(g.get("sport"))
             or q in safe_lower(g.get("tournament"))
         ]
 
+    # live-only filter
     live_only = request.args.get("live_only", "").lower() in ("1", "true", "yes", "on")
     if live_only:
         games = [g for g in games if g.get("is_live")]
 
+    # group by sport
     sections_by_sport = {}
     for g in games:
         sport = g.get("sport") or "Other"
@@ -138,13 +183,16 @@ def index():
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
     sections.sort(key=lambda s: s["sport"])
 
-    return render_template("index.html", sections=sections, search_query=q, live_only=live_only)
+    return render_template(
+        "index.html",
+        sections=sections,
+        search_query=q,
+        live_only=live_only,
+    )
 
 
 @app.route("/game/<int:game_id>")
 def game_detail(game_id):
-    mark_active()
-
     games = load_games()
     game = next((g for g in games if g["id"] == game_id), None)
     if not game:
@@ -152,7 +200,8 @@ def game_detail(game_id):
 
     # Other games with streams (for multi-view)
     other_games = [
-        g for g in games
+        g
+        for g in games
         if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
     ]
 
@@ -198,9 +247,6 @@ def start_scheduler():
     atexit.register(lambda: scheduler.shutdown())
 
 
-if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    start_scheduler()
-
-
 if __name__ == "__main__":
+    start_scheduler()
     app.run(host="127.0.0.1", port=5000, debug=True)
