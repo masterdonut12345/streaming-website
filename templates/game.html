@@ -473,6 +473,7 @@
         {% endif %}
     </div>
 
+    <!-- Existing stream + multi-view JS -->
     <script>
         (function() {
             const mainIframe     = document.getElementById('game-iframe');
@@ -564,6 +565,32 @@
             }
 
             multiAddBtn.addEventListener('click', addMultiSlot);
+        })();
+    </script>
+
+    <!-- Heartbeat: track active viewers on this page -->
+    <script>
+        (function () {
+            function sendHeartbeat() {
+                fetch("{{ url_for('heartbeat') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        path: window.location.pathname
+                    })
+                }).catch(function (err) {
+                    // it's just metrics; ignore any errors
+                    if (window.console && console.debug) {
+                        console.debug("heartbeat error", err);
+                    }
+                });
+            }
+
+            // Send one immediately and then every 30 seconds
+            sendHeartbeat();
+            setInterval(sendHeartbeat, 30000);
         })();
     </script>
 </body>

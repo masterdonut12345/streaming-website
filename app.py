@@ -1,4 +1,4 @@
-from flask import Flask, render_template, abort, request, session
+from flask import Flask, render_template, abort, request, session, jsonify
 import pandas as pd
 import ast
 import os
@@ -17,35 +17,86 @@ app.secret_key = "replace_this_with_random"
 
 # ---------------------- ACTIVE VIEWER TRACKER ----------------------
 
-ACTIVE_VIEWERS = {}  # session_id → last_seen timestamp
-LAST_VIEWER_PRINT = None  # throttle printing
+# Tracks "people" (sessions) active anywhere on the site
+ACTIVE_VIEWERS = {}        # session_id → last_seen timestamp
+# Tracks activity per-page (path)
+ACTIVE_PAGE_VIEWS = {}     # (session_id, path) → last_seen timestamp
+LAST_VIEWER_PRINT = None   # throttle printing
 
 
 def get_session_id():
     """Assign each visitor a unique ID if they don't already have one."""
     if "sid" not in session:
+        # stable random ID per browser session
         session["sid"] = str(uuid.UUID(bytes=os.urandom(16)))
     return session["sid"]
 
 
 def mark_active():
-    """Mark this session as active, clean out inactive ones, and occasionally log count."""
-    global LAST_VIEWER_PRINT
-
+    """
+    Mark this session as active (site-wide) and clean out inactive ones.
+    This is called on page load (index/game). Heartbeat does more precise
+    tracking and printing.
+    """
     sid = get_session_id()
     now = datetime.utcnow()
     ACTIVE_VIEWERS[sid] = now
 
-    # remove sessions inactive for 2 minutes
     cutoff = now - timedelta(minutes=2)
     for s, ts in list(ACTIVE_VIEWERS.items()):
         if ts < cutoff:
             del ACTIVE_VIEWERS[s]
 
-    # print active viewer count at most once every 60 seconds
+
+@app.route("/heartbeat", methods=["POST"])
+def heartbeat():
+    """
+    Lightweight endpoint the browser calls periodically while a page is open.
+    Used to track active sessions and active viewers per page path.
+    """
+    global LAST_VIEWER_PRINT
+
+    sid = get_session_id()
+    now = datetime.utcnow()
+
+    data = request.get_json(silent=True) or {}
+    path = data.get("path") or request.path  # usually window.location.pathname
+
+    # Update site-wide activity
+    ACTIVE_VIEWERS[sid] = now
+    # Update per-page activity
+    ACTIVE_PAGE_VIEWS[(sid, path)] = now
+
+    # Expire entries older than ~45 seconds
+    cutoff = now - timedelta(seconds=45)
+
+    for key, ts in list(ACTIVE_PAGE_VIEWS.items()):
+        if ts < cutoff:
+            del ACTIVE_PAGE_VIEWS[key]
+
+    for s, ts in list(ACTIVE_VIEWERS.items()):
+        if ts < cutoff:
+            del ACTIVE_VIEWERS[s]
+
+    # Log counts at most once per 60 seconds
     if LAST_VIEWER_PRINT is None or (now - LAST_VIEWER_PRINT) > timedelta(seconds=60):
-        print(f"[ACTIVE VIEWERS] Currently active users: {len(ACTIVE_VIEWERS)}")
+        total_active = len(ACTIVE_VIEWERS)
+
+        # Example: how many are on home page "/"
+        home_sids = {sid for (sid, p) in ACTIVE_PAGE_VIEWS.keys() if p == "/"}
+        home_count = len(home_sids)
+
+        # Example: how many are on any game page (URL starting with "/game/")
+        game_sids = {sid for (sid, p) in ACTIVE_PAGE_VIEWS.keys() if p.startswith("/game/")}
+        game_count = len(game_sids)
+
+        print(f"[VIEWERS] Total active sessions (≈people): {total_active}")
+        print(f"[VIEWERS] Active on '/': {home_count}")
+        print(f"[VIEWERS] Active on game pages: {game_count}")
+
         LAST_VIEWER_PRINT = now
+
+    return jsonify({"ok": True})
 
 
 # ---------------------- UTILITIES ----------------------
@@ -74,7 +125,7 @@ def load_games():
     # mapping: normalize sport names
     sport_map = {
         "American Football": "NFL",
-        "Basketball": "NFL",
+        "Basketball": "NBA",
     }
 
     for idx, row in df.iterrows():
