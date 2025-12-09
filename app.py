@@ -24,7 +24,7 @@ LAST_VIEWER_PRINT = None  # throttle printing
 def get_session_id():
     """Assign each visitor a unique ID if they don't already have one."""
     if "sid" not in session:
-        session["sid"] = str(uuid.uuid4())
+        session["sid"] = str(uuid.UUID(bytes=os.urandom(16)))
     return session["sid"]
 
 
@@ -71,6 +71,12 @@ def load_games():
 
     games = []
 
+    # mapping: normalize sport names
+    sport_map = {
+        "American Football": "NFL",
+        "Basketball": "NFL",
+    }
+
     for idx, row in df.iterrows():
         streams = []
         if "streams" in df.columns and pd.notna(row.get("streams")):
@@ -89,6 +95,12 @@ def load_games():
 
         game_id = int(row["id"]) if "id" in df.columns and not pd.isna(row.get("id")) else int(idx)
 
+        # normalize sport
+        raw_sport = row.get("sport")
+        if isinstance(raw_sport, str):
+            raw_sport = raw_sport.strip()
+        sport = sport_map.get(raw_sport, raw_sport)
+
         is_live = False
         if "is_live" in df.columns:
             raw = str(row.get("is_live")).lower().strip()
@@ -97,7 +109,7 @@ def load_games():
         games.append({
             "id": game_id,
             "date_header": row.get("date_header"),
-            "sport": row.get("sport"),
+            "sport": sport,
             "time_unix": row.get("time_unix"),
             "time": row.get("time"),
             "tournament": row.get("tournament"),
