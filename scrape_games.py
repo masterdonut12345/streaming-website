@@ -79,8 +79,9 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 event_dt = None
                 if unix_time:
                     try:
-                        event_dt = datetime.fromtimestamp(int(unix_time) / 1000, tz=pytz.utc)  # Convert from UTC
-                        event_dt = event_dt.astimezone(EST)  # Convert to EST
+                        event_dt = datetime.fromtimestamp(int(unix_time) / 1000)
+                        # Convert the event datetime to EST
+                        event_dt = event_dt.astimezone(EST)
                     except Exception:
                         event_dt = None
 
@@ -160,7 +161,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
         try:
             event_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             # Convert the event datetime to EST
-            event_dt = event_dt.replace(tzinfo=pytz.utc).astimezone(EST)
+            event_dt = event_dt.astimezone(EST)
         except Exception:
             print(f"[shark][ERROR] Failed to parse date: {date_str}")
             continue
