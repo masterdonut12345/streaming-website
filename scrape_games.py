@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import pandas as pd
+import pytz
 import re
 from urllib.parse import urljoin
 from typing import Optional, List, Dict, Any
@@ -12,6 +13,10 @@ BASE_URL_SHARK = "https://sharkstreams.net/"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; EventScraper/1.0)"
 }
+
+# Define EST timezone
+EST = pytz.timezone("US/Eastern")
+
 
 # ========= 1) SPORT71: TODAY'S GAMES =========
 def scrape_today_games_sport71() -> pd.DataFrame:
@@ -75,6 +80,8 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 if unix_time:
                     try:
                         event_dt = datetime.fromtimestamp(int(unix_time) / 1000)
+                        # Convert the event datetime to EST
+                        event_dt = event_dt.astimezone(EST)
                     except Exception:
                         event_dt = None
 
@@ -99,9 +106,9 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                     else None
                 )
 
-                # Determine if the game is live
+                # Determine if the game is live (based on EST)
                 is_live = False
-                if event_dt and event_dt <= datetime.now() <= event_dt + timedelta(hours=2):
+                if event_dt and event_dt <= datetime.now(EST) <= event_dt + timedelta(hours=2.5):
                     is_live = True
 
                 rows.append(
@@ -121,6 +128,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     return df
+
 
 # ========= 2) SHARKSTREAMS: TODAY'S GAMES =========
 def scrape_today_games_shark() -> pd.DataFrame:
@@ -152,6 +160,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
         date_str = date_span.get_text(strip=True)
         try:
             event_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            # Convert the event datetime to EST
+            event_dt = event_dt.astimezone(EST)
         except Exception:
             print(f"[shark][ERROR] Failed to parse date: {date_str}")
             continue
@@ -201,9 +211,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
             }
         ]
 
-        # Determine if the game is live
+        # Determine if the game is live (based on EST)
         is_live = False
-        if event_dt <= datetime.now() <= event_dt + timedelta(hours=2):
+        if event_dt <= datetime.now(EST) <= event_dt + timedelta(hours=2.5):
             is_live = True
 
         rows.append(
@@ -226,8 +236,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
     df = pd.DataFrame(rows)
     return df
 
-# ========= 3) FUNCTION TO GET STREAMS FROM WATCH PAGE =========
 
+# ========= 3) FUNCTION TO GET STREAMS FROM WATCH PAGE =========
 def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, Any]]:
     """
     Given a sport71-style watch URL, extract the stream URLs from it.
@@ -283,7 +293,6 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
 
 
 # ========= 4) EXTRACT EMBED URL =========
-
 def extract_embed_url_from_soup(soup: BeautifulSoup) -> Optional[str]:
     """
     Given a BeautifulSoup object of a watch page,
@@ -303,7 +312,6 @@ def extract_embed_url_from_soup(soup: BeautifulSoup) -> Optional[str]:
 
 
 # ========= 5) MAIN FUNCTION TO COMBINE DATA AND WRITE CSV =========
-
 def main() -> None:
     # 1) sport71 games
     df_sport71 = scrape_today_games_sport71()
