@@ -67,14 +67,57 @@
             }
         }
 
+        /* === TOP NAV / BRAND BAR === */
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.82rem;
+            color: #e5e9ff;
+        }
+
+        .brand-logo {
+            width: 18px;
+            height: 18px;
+            border-radius: 6px;
+            background: radial-gradient(circle at 30% 10%, #a1b5ff, #4f7cff 45%, #111321 100%);
+            box-shadow: 0 0 0 1px rgba(122, 162, 255, 0.55);
+        }
+
+        .top-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pill-label {
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(5, 5, 12, 0.85);
+        }
+
         /* === DARK GLASS BLUE HEADER === */
         header {
             border-radius: 20px;
-            padding: 18px 20px;
+            padding: 18px 20px 14px;
             margin-bottom: 18px;
-            background: radial-gradient(circle at top left, rgba(64, 117, 255, 0.35), rgba(5, 7, 18, 0.9));
+            background: radial-gradient(circle at top left, rgba(64, 117, 255, 0.38), rgba(5, 7, 18, 0.94));
             border: 1px solid rgba(122, 162, 255, 0.5);
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+            box-shadow: 0 22px 55px rgba(0, 0, 0, 0.9);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
         }
@@ -87,64 +130,48 @@
             gap: 20px;
         }
 
+        .header-text {
+            flex: 1 1 auto;
+        }
+
         h1 {
             margin: 0 0 4px 0;
             font-size: 2.1rem;
             letter-spacing: 0.03em;
         }
 
-        h2 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-
-        .header-text {
-            flex: 1 1 auto;
-        }
-
-        .tagline {
-            margin: 0;
-            font-size: 0.95rem;
-            color: var(--muted);
-        }
-
-        /* social links row (used in footer now) */
-        .social-row {
-            margin-top: 8px;
+        .header-subline {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             align-items: center;
-        }
-
-        .social-label {
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             color: var(--muted);
-            margin-right: 4px;
         }
 
-        .social-link {
-            font-size: 0.8rem;
-            padding: 4px 10px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(8, 8, 16, 0.9);
-            color: var(--text);
+        .tagline {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .live-counter-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            text-decoration: none;
-            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(4, 6, 18, 0.9);
+            font-size: 0.75rem;
         }
 
-        .social-link span.handle {
-            color: var(--accent);
-        }
-
-        .social-link:hover {
-            background: rgba(18, 18, 28, 0.95);
-            border-color: rgba(122, 162, 255, 0.7);
-            transform: translateY(-1px);
+        .live-counter-pill::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--live);
+            box-shadow: 0 0 8px rgba(255, 77, 106, 0.7);
         }
 
         .ad-slot-top-right {
@@ -165,15 +192,27 @@
         }
 
         /* search bar */
+        .search-shell {
+            margin: 18px 0 10px 0;
+            position: sticky;
+            top: 12px;
+            z-index: 5;
+        }
+
+        @media (max-width: 900px) {
+            .search-shell {
+                position: static;
+            }
+        }
+
         .search-bar {
-            margin: 18px 0 18px 0;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             align-items: center;
-            padding: 12px 14px;
+            padding: 10px 12px;
             border-radius: 14px;
-            background: rgba(5, 5, 12, 0.95);
+            background: rgba(5, 5, 12, 0.96);
             border: 1px solid rgba(255, 255, 255, 0.04);
             box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
         }
@@ -200,6 +239,12 @@
             background: #11111b;
         }
 
+        .search-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
         .search-bar button {
             padding: 8px 14px;
             font-size: 0.9rem;
@@ -220,16 +265,16 @@
             transform: translateY(-1px);
         }
 
-        .search-bar button[type="button"] {
+        .search-bar button[type="button"].secondary-btn {
             background: transparent;
             color: var(--muted);
         }
 
-        .search-bar button[type="button"]:hover {
+        .search-bar button[type="button"].secondary-btn:hover {
             background: rgba(255, 255, 255, 0.02);
         }
 
-        /* live filter button in search bar */
+        /* live filter + segmented style */
         .live-filter-button {
             border-radius: 999px;
             border: 1px solid rgba(255, 77, 106, 0.6);
@@ -250,6 +295,49 @@
             background: rgba(255, 77, 106, 0.25);
             border-color: rgba(255, 77, 106, 0.9);
             color: #ffeef2;
+        }
+
+        /* QUICK FILTER CHIPS */
+        .quick-filters {
+            margin: 6px 0 18px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 0.8rem;
+        }
+
+        .quick-filters-label {
+            color: var(--muted);
+            margin-right: 4px;
+        }
+
+        .filter-chip {
+            border-radius: 999px;
+            padding: 5px 11px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(9, 9, 16, 0.9);
+            color: var(--text);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
+        }
+
+        .filter-chip span.emoji {
+            font-size: 0.9rem;
+        }
+
+        .filter-chip:hover {
+            background: rgba(20, 22, 40, 0.96);
+            border-color: rgba(122, 162, 255, 0.7);
+            transform: translateY(-1px);
+        }
+
+        .filter-chip.active {
+            background: var(--accent-soft);
+            border-color: rgba(122, 162, 255, 0.85);
+            color: #e2e8ff;
         }
 
         /* === NOW PLAYING STRIP === */
@@ -325,6 +413,7 @@
             opacity: 0.9;
         }
 
+        /* SPORT SECTIONS */
         .sport-section {
             margin-bottom: 16px;
             border-radius: 14px;
@@ -333,7 +422,6 @@
             overflow: hidden;
         }
 
-        /* === DARK GLASS SPORT HEADER === */
         .sport-header {
             display: flex;
             align-items: center;
@@ -394,7 +482,7 @@
         }
 
         .sport-body {
-            padding: 6px 10px 10px;
+            padding: 8px 10px 12px;
             display: none;
         }
 
@@ -402,19 +490,25 @@
             display: block;
         }
 
+        /* GRID OF GAME CARDS */
+        .sport-games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 10px;
+        }
+
         .game-card {
             border: 1px solid rgba(255, 255, 255, 0.04);
             background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.09), var(--surface));
-            padding: 14px 16px;
-            margin: 10px 0;
+            padding: 12px 13px;
             border-radius: 14px;
-            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.65);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.6);
             transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.2s ease;
         }
 
         .game-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.85);
             border-color: rgba(122, 162, 255, 0.7);
             background: radial-gradient(circle at top left, rgba(122, 162, 255, 0.12), #0b0b12);
         }
@@ -424,28 +518,64 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
+            margin-bottom: 6px;
         }
 
         .game-title {
             font-weight: 600;
-            font-size: 1.03em;
-            margin-bottom: 4px;
+            font-size: 1.02em;
         }
 
-        a {
+        .game-title a {
+            color: #e5e9ff;
             text-decoration: none;
-            color: var(--accent);
-            transition: color 0.15s ease, text-shadow 0.18s ease;
         }
-        a:hover {
-            color: #a4bcff;
+
+        .game-title a:hover {
+            color: #ffffff;
             text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
         }
 
-        .meta {
-            font-size: 0.88em;
+        .game-tags-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .game-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 0.72rem;
+        }
+
+        .tag-pill {
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(8, 8, 18, 0.9);
+            color: #d7ddff;
+            white-space: nowrap;
+        }
+
+        .tag-pill.outline {
+            border-style: dashed;
+            opacity: 0.85;
+        }
+
+        .game-time {
+            font-size: 0.8rem;
             color: var(--muted);
-            margin-top: 6px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .meta {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 4px;
             line-height: 1.45;
         }
 
@@ -454,40 +584,12 @@
             font-weight: 500;
         }
 
-        /* old status badge styles (kept in case you re-use elsewhere) */
-        .status-badge {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-            padding: 3px 8px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            white-space: nowrap;
-        }
-
-        .status-live {
-            border-color: rgba(255, 77, 106, 0.7);
-            background: rgba(255, 77, 106, 0.15);
-            color: #ffcdd5;
-        }
-
-        .live-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 999px;
-            background: var(--live);
-            box-shadow: 0 0 8px rgba(255, 77, 106, 0.7);
-        }
-
         /* NEW: live pill shown next to each live game */
         .live-button {
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            padding: 4px 10px;
+            padding: 4px 9px;
             border-radius: 999px;
             border: 1px solid rgba(255, 77, 106, 0.9);
             background: rgba(255, 77, 106, 0.18);
@@ -505,6 +607,16 @@
             border-radius: 999px;
             background: var(--live);
             box-shadow: 0 0 8px rgba(255, 77, 106, 0.8);
+        }
+
+        a {
+            text-decoration: none;
+            color: var(--accent);
+            transition: color 0.15s ease, text-shadow 0.18s ease;
+        }
+        a:hover {
+            color: #a4bcff;
+            text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
         }
 
         .empty-state {
@@ -556,16 +668,75 @@
             font-size: 0.8rem;
             color: var(--muted);
         }
+
+        /* social links row */
+        .social-row {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .social-link {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(8, 8, 16, 0.9);
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .social-link span.handle {
+            color: var(--accent);
+        }
+
+        .social-link:hover {
+            background: rgba(18, 18, 28, 0.95);
+            border-color: rgba(122, 162, 255, 0.7);
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
     <div class="page-wrapper">
+
+        <!-- Small brand row above header -->
+        <div class="top-nav">
+            <div class="brand">
+                <div class="brand-logo"></div>
+                <span>The Stream Den</span>
+            </div>
+            <div class="top-nav-right">
+                <div class="pill-label">Free live sports • Fewer ads</div>
+            </div>
+        </div>
+
         <!-- Header with title on left, 728x90 ad on right -->
         <header>
             <div class="header-container">
                 <div class="header-text">
                     <h1>Today's Games</h1>
-                    <p class="tagline">Live sports streaming for free.</p>
+                    <div class="header-subline">
+                        <p class="tagline">Browse live and upcoming streams in one place.</p>
+                        {% if sections %}
+                            {% set total_live = 0 %}
+                            {% for section in sections %}
+                                {% set live_count = section.games|selectattr('is_live')|list|length %}
+                                {% set total_live = total_live + live_count %}
+                            {% endfor %}
+                            {% if total_live > 0 %}
+                                <span class="live-counter-pill">
+                                    {{ total_live }} live game{% if total_live != 1 %}s{% endif %} right now
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
 
                 <div class="ad-slot-top-right">
@@ -587,37 +758,68 @@
             </div>
         </header>
 
-        <!-- Search bar -->
-        <form class="search-bar" method="get" action="{{ url_for('index') }}">
-            <input
-                type="text"
-                name="q"
-                placeholder="Search by team, sport, or tournament..."
-                value="{{ search_query or '' }}"
-            >
-            <button type="submit">
-                🔍 Search
-            </button>
+        <!-- Search bar + quick filters -->
+        <div class="search-shell">
+            <form class="search-bar" method="get" action="{{ url_for('index') }}">
+                <input
+                    id="searchInput"
+                    type="text"
+                    name="q"
+                    placeholder="Search by team, sport, or tournament..."
+                    value="{{ search_query or '' }}"
+                >
+                <div class="search-actions">
+                    <button type="submit">
+                        🔍 Search
+                    </button>
 
-            <!-- Live-only toggle button -->
-            <button
-                type="button"
-                class="live-filter-button {% if live_only %}active{% endif %}"
-                onclick="toggleLiveOnly({{ 'true' if live_only else 'false' }})">
-                🔴 Live only
-            </button>
+                    <!-- Live-only toggle button -->
+                    <button
+                        type="button"
+                        class="live-filter-button {% if live_only %}active{% endif %}"
+                        onclick="toggleLiveOnly({{ 'true' if live_only else 'false' }})">
+                        🔴 Live only
+                    </button>
 
-            {% if search_query %}
-                <button type="button" onclick="window.location='{{ url_for('index') }}'">
-                    ✖ Clear
+                    {% if search_query %}
+                        <button
+                            type="button"
+                            class="secondary-btn"
+                            onclick="window.location='{{ url_for('index') }}'">
+                            ✖ Clear
+                        </button>
+                    {% endif %}
+                </div>
+
+                {# Preserve live_only when searching #}
+                {% if live_only %}
+                    <input type="hidden" name="live_only" value="1">
+                {% endif %}
+            </form>
+
+            <!-- Quick sport filter chips -->
+            <div class="quick-filters">
+                <span class="quick-filters-label">Quick filters:</span>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('NFL')">
+                    <span class="emoji">🏈</span> NFL
                 </button>
-            {% endif %}
-
-            {# Preserve live_only when searching #}
-            {% if live_only %}
-                <input type="hidden" name="live_only" value="1">
-            {% endif %}
-        </form>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('Basketball')">
+                    <span class="emoji">🏀</span> Basketball
+                </button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('ICE HOCKEY')">
+                    <span class="emoji">🏒</span> ICE HOCKEY
+                </button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('MLB')">
+                    <span class="emoji">⚾</span> MLB
+                </button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('Soccer')">
+                    <span class="emoji">⚽</span> Soccer
+                </button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('')">
+                   Clear
+                </button>
+            </div>
+        </div>
 
         {# ==== NOW PLAYING (LIVE GAMES ACROSS ALL SPORTS) ==== #}
         {% if sections %}
@@ -678,34 +880,51 @@
                     </div>
 
                     <div class="sport-body">
-                        {% for game in section.games %}
-                            <div class="game-card">
-                                <div class="game-title-row">
-                                    <div class="game-title">
-                                        <a href="{{ url_for('game_detail', game_id=game.id) }}">
-                                            {{ game.matchup }}
-                                        </a>
+                        <div class="sport-games-grid">
+                            {% for game in section.games %}
+                                <div class="game-card">
+                                    <div class="game-title-row">
+                                        <div class="game-title">
+                                            <a href="{{ url_for('game_detail', game_id=game.id) }}">
+                                                {{ game.matchup }}
+                                            </a>
+                                        </div>
+                                        {% if game.is_live %}
+                                            <button class="live-button" type="button">
+                                                LIVE
+                                            </button>
+                                        {% endif %}
                                     </div>
-                                    {% if game.is_live %}
-                                        <button class="live-button" type="button">
-                                            LIVE
-                                        </button>
-                                    {% endif %}
+
+                                    <div class="game-tags-row">
+                                        <div class="game-tags">
+                                            {% if game.sport %}
+                                                <span class="tag-pill">{{ game.sport }}</span>
+                                            {% endif %}
+                                            {% if game.tournament %}
+                                                <span class="tag-pill outline">{{ game.tournament }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="game-time">
+                                            {% if game.time %}
+                                                {{ game.time }}
+                                            {% elif game.time_unix %}
+                                                {{ game.time_unix }}
+                                            {% else %}
+                                                Time TBA
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="meta">
+                                        <strong>Date:</strong> {{ game.date_header or 'Today' }}<br>
+                                        {% if game.tournament_url %}
+                                            <a href="{{ game.tournament_url }}" target="_blank">View tournament page ↗</a>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                                <div class="meta">
-                                    <strong>Tournament:</strong> {{ game.tournament or 'N/A' }}<br>
-                                    {% if game.time %}
-                                        <strong>Time:</strong> {{ game.time }}
-                                    {% else %}
-                                        <strong>Time (unix):</strong> {{ game.time_unix or 'N/A' }}
-                                    {% endif %}<br>
-                                    <strong>Date:</strong> {{ game.date_header or 'Today' }}<br>
-                                    {% if game.tournament_url %}
-                                        <a href="{{ game.tournament_url }}" target="_blank">View tournament page ↗</a>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             {% endfor %}
@@ -761,10 +980,18 @@
             window.location.href = url.toString();
         }
 
+        // Quick filter chips: set query and submit
+        function applyFilterChip(term) {
+            const input = document.getElementById('searchInput');
+            if (!input) return;
+            input.value = term;
+            const form = input.closest('form');
+            if (form) form.submit();
+        }
+
         // Make each sport-section collapsible
         document.addEventListener('DOMContentLoaded', function () {
             const sections = document.querySelectorAll('.sport-section');
-
             sections.forEach(function (sec, index) {
                 const header = sec.querySelector('.sport-header');
                 if (!header) return;

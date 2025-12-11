@@ -124,8 +124,9 @@ def load_games():
 
     # mapping: normalize sport names
     sport_map = {
+        "Football" : "Soccer",
         "American Football": "NFL",
-        "Basketball": "NBA",
+        "NBA": "Basketball",
     }
 
     for idx, row in df.iterrows():
@@ -157,20 +158,33 @@ def load_games():
             raw = str(row.get("is_live")).lower().strip()
             is_live = raw in ("1", "true", "yes", "y", "live")
 
-        games.append({
-            "id": game_id,
-            "date_header": row.get("date_header"),
-            "sport": sport,
-            "time_unix": row.get("time_unix"),
-            "time": row.get("time"),
-            "tournament": row.get("tournament"),
-            "tournament_url": row.get("tournament_url"),
-            "matchup": row.get("matchup"),
-            "watch_url": row.get("watch_url"),
-            "streams": streams,
-            "is_live": is_live,
-        })
+        
+        # --- Format time as "h:mm AM/PM ET" ---
+        raw_time = row.get("time")
+        time_display = None
 
+        if isinstance(raw_time, str) and raw_time.strip():
+            try:
+                dt = pd.to_datetime(raw_time)
+
+                time_display = dt.strftime("%I:%M %p ET").lstrip("0")
+            except Exception as e:
+                print(f"[load_games][WARN] Could not parse time for row {idx}: {raw_time} ({e})")
+                time_display = None
+
+        games.append({
+        "id": game_id,
+        "date_header": row.get("date_header"),
+        "sport": sport,
+        "time_unix": row.get("time_unix"),
+        "time": time_display,   # <<< use the formatted time
+        "tournament": row.get("tournament"),
+        "tournament_url": row.get("tournament_url"),
+        "matchup": row.get("matchup"),
+        "watch_url": row.get("watch_url"),
+        "streams": streams,
+        "is_live": is_live,
+        })
     return games
 
 

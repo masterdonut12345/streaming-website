@@ -175,7 +175,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
         raw_matchup = name_span.get_text(strip=True) if name_span else "Unknown"
 
         # mark SharkStreams entries as alternative links
-        matchup = f"{raw_matchup} (alternative)"
+        matchup = raw_matchup
 
         embed_link = None
         for a in row_div.find_all("a", class_="hd-link"):
