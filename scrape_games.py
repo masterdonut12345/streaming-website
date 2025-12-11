@@ -14,8 +14,9 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; EventScraper/1.0)"
 }
 
-# Define EST timezone
+# Define time zones
 EST = pytz.timezone("US/Eastern")
+UTC = pytz.UTC
 
 
 # ========= 1) SPORT71: TODAY'S GAMES =========
@@ -23,6 +24,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
     """
     Scrape today's games from sport71.pro and return a DataFrame
     with basic info, including watch_url.
+    All date logic is done relative to US/Eastern.
     """
     try:
         req = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
@@ -43,8 +45,9 @@ def scrape_today_games_sport71() -> pd.DataFrame:
         print("[sport71][ERROR] Could not find <section id='upcoming-events'> — page may be JS-rendered.")
         return pd.DataFrame()
 
-    today = datetime.now()
-    today_str = f"{today.strftime('%A')}, {today.strftime('%B')} {today.day}, {today.year}"
+    # Use "today" in EST so server timezone (UTC) doesn't mess us up
+    today_est = datetime.now(EST)
+    today_str = f"{today_est.strftime('%A')}, {today_est.strftime('%B')} {today_est.day}, {today_est.year}"
 
     rows = []
 
@@ -73,16 +76,18 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 if len(tds) != 3:
                     continue
 
-                # time
+                # time (sport71 gives a unix ms timestamp — assume UTC)
                 time_span = tds[0].find("span", class_="event-time")
                 unix_time = time_span.get("data-unix-time") if time_span else None
                 event_dt = None
                 if unix_time:
                     try:
-                        event_dt = datetime.fromtimestamp(int(unix_time) / 1000)
-                        # Convert the event datetime to EST
-                        event_dt = event_dt.astimezone(EST)
-                    except Exception:
+                        ts_ms = int(unix_time)
+                        # Make this explicitly UTC, then convert to EST
+                        dt_utc = datetime.fromtimestamp(ts_ms / 1000.0, tz=UTC)
+                        event_dt = dt_utc.astimezone(EST)
+                    except Exception as e:
+                        print("[sport71][ERROR] failed to parse unix_time:", unix_time, e)
                         event_dt = None
 
                 # tournament
@@ -106,9 +111,10 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                     else None
                 )
 
-                # Determine if the game is live (based on EST)
+                # Determine if the game is live (comparing in EST)
                 is_live = False
-                if event_dt and event_dt <= datetime.now(EST) <= event_dt + timedelta(hours=2.5):
+                now_est = datetime.now(EST)
+                if event_dt and event_dt <= now_est <= event_dt + timedelta(hours=2.5):
                     is_live = True
 
                 rows.append(
@@ -136,6 +142,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
     Scrape games from sharkstreams.net homepage and return
     a DataFrame with the same columns as sport71, including a
     'streams' list and 'embed_url' prefilled.
+
+    IMPORTANT: sharkstreams times are assumed to be listed in US/Eastern.
+    We localize them as EST (no conversion from server local time).
     """
     try:
         req = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
@@ -159,9 +168,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
         date_str = date_span.get_text(strip=True)
         try:
-            event_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            # Convert the event datetime to EST
-            event_dt = event_dt.astimezone(EST)
+            naive_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            # Treat this as a *local EST time*, not server local or UTC
+            event_dt = EST.localize(naive_dt)
         except Exception:
             print(f"[shark][ERROR] Failed to parse date: {date_str}")
             continue
@@ -202,6 +211,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
         embed_link = urljoin(BASE_URL_SHARK, embed_link)
 
+        # Use the EST-aware datetime to compute unix time
         time_unix = int(event_dt.timestamp() * 1000)
 
         streams = [
@@ -212,9 +222,8 @@ def scrape_today_games_shark() -> pd.DataFrame:
         ]
 
         # Determine if the game is live (based on EST)
-        is_live = False
-        if event_dt <= datetime.now(EST) <= event_dt + timedelta(hours=2.5):
-            is_live = True
+        now_est = datetime.now(EST)
+        is_live = event_dt <= now_est <= event_dt + timedelta(hours=2.5)
 
         rows.append(
             {
@@ -319,7 +328,9 @@ def main() -> None:
     # if we got any sport71 games, fetch their streams
     if not df_sport71.empty:
         df_sport71["streams"] = df_sport71["watch_url"].apply(get_all_streams_from_watch_page)
-        df_sport71["embed_url"] = df_sport71["streams"].apply(lambda streams: streams[0]["embed_url"] if streams else None)
+        df_sport71["embed_url"] = df_sport71["streams"].apply(
+            lambda streams: streams[0]["embed_url"] if streams else None
+        )
 
     # 2) sharkstreams games (already come with streams + embed_url)
     df_shark = scrape_today_games_shark()
