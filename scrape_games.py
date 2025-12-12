@@ -47,7 +47,9 @@ def scrape_today_games_sport71() -> pd.DataFrame:
 
     # Use "today" in EST so server timezone (UTC) doesn't mess us up
     today_est = datetime.now(EST)
+    tmrw_est = today_est + timedelta(days=1)
     today_str = f"{today_est.strftime('%A')}, {today_est.strftime('%B')} {today_est.day}, {today_est.year}"
+    tmrw_str = f"{tmrw_est.strftime('%A')}, {tmrw_est.strftime('%B')} {tmrw_est.day}, {tmrw_est.year}"
 
     rows = []
 
@@ -56,7 +58,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
         date_text = date_tag.get_text(strip=True) if date_tag else None
 
         # Only today's block
-        if date_text != today_str:
+        if date_text != today_str and date_text != tmrw_str:
             continue
 
         for card in day_block.select("div.space-y-6 > div.bg-white"):
