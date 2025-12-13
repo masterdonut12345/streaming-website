@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 from datetime import datetime, timedelta
 import uuid
-from collections import Counter
+import hashlib  # for stable IDs
 
 import scrape_games  # our scraper module
 
@@ -106,6 +106,17 @@ def safe_lower(value):
     return value.lower() if isinstance(value, str) else ""
 
 
+def make_stable_id(row):
+    """
+    Build a stable integer ID from key fields so that the same game
+    always gets the same ID even if CSV row order changes.
+    """
+    key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
+    digest = hashlib.md5(key.encode("utf-8")).hexdigest()
+    # Use first 8 hex chars (32 bits) as an int – plenty for your URLs
+    return int(digest[:8], 16)
+
+
 def load_games():
     if not os.path.exists(DATA_PATH):
         print(f"[load_games][ERROR] CSV not found at {DATA_PATH}")
@@ -146,7 +157,11 @@ def load_games():
                 print(f"[load_games][ERROR] Error parsing streams for row {idx}: {e}")
                 streams = []
 
-        game_id = int(row["id"]) if "id" in df.columns and not pd.isna(row.get("id")) else int(idx)
+        # Stable game ID:
+        if "id" in df.columns and not pd.isna(row.get("id")):
+            game_id = int(row["id"])
+        else:
+            game_id = make_stable_id(row)
 
         # normalize sport
         raw_sport = row.get("sport")
@@ -187,49 +202,60 @@ def load_games():
     return games
 
 
-def get_most_viewed_games(games, limit=5):
+def get_game_view_counts(cutoff_seconds=45):
     """
-    Use ACTIVE_PAGE_VIEWS to find which /game/<id> pages currently
-    have the most distinct viewers (sessions), then map that to the
-    games list from load_games().
+    Compute active viewer counts per game_id based on ACTIVE_PAGE_VIEWS
+    where path starts with /game/<id>.
     """
     now = datetime.utcnow()
-    cutoff = now - timedelta(seconds=45)
+    cutoff = now - timedelta(seconds=cutoff_seconds)
+    counts = {}
 
-    # Count distinct sessions per game_id
-    counts_by_id = Counter()
-    for (sid, path), ts in ACTIVE_PAGE_VIEWS.items():
+    for (sid, path), ts in list(ACTIVE_PAGE_VIEWS.items()):
         if ts < cutoff:
             continue
+
         if not path.startswith("/game/"):
             continue
-        try:
-            # path like "/game/123" or "/game/123/"
-            tail = path.split("/game/", 1)[1]
-            game_id_str = tail.split("/", 1)[0]
-            game_id = int(game_id_str)
-        except Exception:
-            continue
-        counts_by_id[game_id] += 1
 
-    if not counts_by_id:
+        # path like "/game/123" or "/game/123/"
+        try:
+            game_id_str = path.rstrip("/").split("/")[-1]
+            game_id = int(game_id_str)
+        except ValueError:
+            continue
+
+        counts[game_id] = counts.get(game_id, 0) + 1
+
+    return counts
+
+
+def get_most_viewed_games(all_games, limit=5):
+    """
+    Given the full list of games, return up to `limit` games with
+    the highest active viewer counts, including `active_viewers` field.
+    """
+    counts = get_game_view_counts()
+    if not counts:
         return []
 
-    # Map IDs to game objects
-    games_by_id = {g["id"]: g for g in games}
+    games_by_id = {g["id"]: g for g in all_games}
 
-    most_viewed = []
-    for game_id, count in counts_by_id.most_common():
-        game = games_by_id.get(game_id)
+    # Sort game IDs by active viewer count desc
+    sorted_ids = sorted(counts.keys(), key=lambda gid: counts[gid], reverse=True)
+
+    result = []
+    for gid in sorted_ids:
+        game = games_by_id.get(gid)
         if not game:
             continue
-        g_copy = game.copy()
-        g_copy["viewer_count"] = count
-        most_viewed.append(g_copy)
-        if len(most_viewed) >= limit:
+        g_copy = dict(game)
+        g_copy["active_viewers"] = counts[gid]
+        result.append(g_copy)
+        if len(result) >= limit:
             break
 
-    return most_viewed
+    return result
 
 
 # ---------------------- ROUTES ----------------------
@@ -237,7 +263,12 @@ def get_most_viewed_games(games, limit=5):
 @app.route("/")
 def index():
     mark_active()
-    games = load_games()
+
+    # Load all games once
+    all_games = load_games()
+
+    # `games` is the list we apply search/live filters to for the main grid
+    games = list(all_games)
 
     q = request.args.get("q", "").strip().lower()
 
@@ -261,8 +292,8 @@ def index():
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
     sections.sort(key=lambda s: s["sport"])
 
-    # compute most viewed games from ACTIVE_PAGE_VIEWS (current viewers on /game/<id> pages)
-    most_viewed_games = get_most_viewed_games(games, limit=5)
+    # IMPORTANT: compute most viewed from ALL games, not the filtered subset
+    most_viewed_games = get_most_viewed_games(all_games, limit=5)
 
     return render_template(
         "index.html",
