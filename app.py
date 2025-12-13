@@ -48,6 +48,28 @@ def mark_active():
             del ACTIVE_VIEWERS[s]
 
 
+def get_view_counts():
+    """
+    Compute how many unique sessions are currently viewing each path
+    (based on ACTIVE_PAGE_VIEWS).
+    """
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=45)
+
+    # Clean out stale entries
+    for key, ts in list(ACTIVE_PAGE_VIEWS.items()):
+        if ts < cutoff:
+            del ACTIVE_PAGE_VIEWS[key]
+
+    # Build path -> set(sids)
+    path_to_sids = {}
+    for (sid, path), ts in ACTIVE_PAGE_VIEWS.items():
+        path_to_sids.setdefault(path, set()).add(sid)
+
+    # Convert to simple path -> viewer_count dict
+    return {path: len(sids) for path, sids in path_to_sids.items()}
+
+
 @app.route("/heartbeat", methods=["POST"])
 def heartbeat():
     """
@@ -215,7 +237,29 @@ def index():
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
     sections.sort(key=lambda s: s["sport"])
 
-    return render_template("index.html", sections=sections, search_query=q, live_only=live_only)
+    # ----- MOST VIEWED: use live view counts from ACTIVE_PAGE_VIEWS -----
+    view_counts = get_view_counts()   # path -> viewer_count
+
+    top_games = []
+    for g in games:
+        path = f"/game/{g['id']}"
+        viewers = view_counts.get(path, 0)
+        if viewers > 0:
+            g_with_viewers = dict(g)
+            g_with_viewers["viewers"] = viewers
+            top_games.append(g_with_viewers)
+
+    # Sort so the most popular (highest viewers) come first
+    top_games.sort(key=lambda gg: gg["viewers"], reverse=True)
+    top_games = top_games[:5]
+
+    return render_template(
+        "index.html",
+        sections=sections,
+        search_query=q,
+        live_only=live_only,
+        top_games=top_games,
+    )
 
 
 @app.route("/game/<int:game_id>")

@@ -60,7 +60,7 @@
             padding: 24px 20px 40px;
         }
 
-        /* give room for fixed ad on big screens */
+        /* give room for fixed ad on big screens (right side) */
         @media (min-width: 1100px) {
             .page-wrapper {
                 margin-right: 220px;
@@ -650,6 +650,88 @@
             }
         }
 
+        /* LEFT-SIDE "MOST VIEWED" SIDEBAR (fixed, does not push layout) */
+        .most-viewed-sidebar {
+            position: fixed;
+            top: 140px;   /* roughly aligned with Now Playing */
+            left: 20px;   /* far left edge */
+            width: 230px;
+            z-index: 100;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: radial-gradient(circle at top left,
+                      rgba(64, 117, 255, 0.3),
+                      rgba(5, 5, 18, 0.96));
+            border: 1px solid rgba(122, 162, 255, 0.5);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            font-size: 0.8rem;
+        }
+
+        .most-viewed-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin: 0 0 4px 0;
+            color: #e0e7ff;
+        }
+
+        .most-viewed-subtext {
+            margin: 0 0 8px 0;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .most-viewed-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .most-viewed-item + .most-viewed-item {
+            margin-top: 6px;
+        }
+
+        .most-viewed-item a {
+            display: block;
+            padding: 6px 8px;
+            border-radius: 10px;
+            background: rgba(4, 7, 20, 0.9);
+            border: 1px solid rgba(159, 180, 255, 0.4);
+            color: #e2e7ff;
+            text-decoration: none;
+        }
+
+        .most-viewed-item a:hover {
+            background: rgba(20, 28, 60, 0.95);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+        }
+
+        .most-viewed-matchup {
+            display: block;
+            font-weight: 600;
+            font-size: 0.82rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .most-viewed-meta {
+            display: block;
+            font-size: 0.72rem;
+            color: #c7cffc;
+            margin-top: 2px;
+        }
+
+        /* Hide the left sidebar on smaller screens so it never overlaps content */
+        @media (max-width: 1200px) {
+            .most-viewed-sidebar {
+                display: none;
+            }
+        }
+
         /* footer */
         footer {
             margin-top: 20px;
@@ -935,6 +1017,30 @@
             </div>
         {% endif %}
     </div>
+
+    {# FIXED LEFT-SIDE MOST VIEWED BOX (does not affect layout) #}
+    {% if top_games %}
+        <div class="most-viewed-sidebar">
+            <h3 class="most-viewed-title">Most Viewed</h3>
+            <p class="most-viewed-subtext">Games with the most viewers right now.</p>
+            <ul class="most-viewed-list">
+                {% for g in top_games %}
+                <li class="most-viewed-item">
+                    <a href="{{ url_for('game_detail', game_id=g.id) }}">
+                        <span class="most-viewed-matchup">
+                            {{ g.matchup }}
+                        </span>
+                        <span class="most-viewed-meta">
+                            {{ g.sport or 'Sport' }}
+                            {% if g.time %} • {{ g.time }}{% endif %}
+                            • {{ g.viewers }} viewer{% if g.viewers != 1 %}s{% endif %}
+                        </span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
 
     <!-- Fixed right-side 160x600 ad (does NOT push content down) -->
     <div class="vertical-ad-fixed">
