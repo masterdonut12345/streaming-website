@@ -13,7 +13,7 @@ import scrape_games  # our scraper module
 DATA_PATH = "today_games_with_all_streams.csv"
 
 app = Flask(__name__)
-app.secret_key = "replace_this_with_random"
+app.secret_key = "heg9q3248hg90a8dhg98q3h23948ghasdpghiuhweioruhgq8934ghiksadhg2398t394t9y898ydjdf8*898394ghhhgh%%%wghjgh23hgh"
 
 # ---------------------- ACTIVE VIEWER TRACKER ----------------------
 
@@ -124,7 +124,7 @@ def load_games():
 
     # mapping: normalize sport names
     sport_map = {
-        "Football" : "Soccer",
+        "Football": "Soccer",
         "American Football": "NFL",
         "NBA": "Basketball",
     }
@@ -158,7 +158,6 @@ def load_games():
             raw = str(row.get("is_live")).lower().strip()
             is_live = raw in ("1", "true", "yes", "y", "live")
 
-        
         # --- Format time as "h:mm AM/PM ET" ---
         raw_time = row.get("time")
         time_display = None
@@ -166,24 +165,23 @@ def load_games():
         if isinstance(raw_time, str) and raw_time.strip():
             try:
                 dt = pd.to_datetime(raw_time)
-
                 time_display = dt.strftime("%I:%M %p ET").lstrip("0")
             except Exception as e:
                 print(f"[load_games][WARN] Could not parse time for row {idx}: {raw_time} ({e})")
                 time_display = None
 
         games.append({
-        "id": game_id,
-        "date_header": row.get("date_header"),
-        "sport": sport,
-        "time_unix": row.get("time_unix"),
-        "time": time_display,   # <<< use the formatted time
-        "tournament": row.get("tournament"),
-        "tournament_url": row.get("tournament_url"),
-        "matchup": row.get("matchup"),
-        "watch_url": row.get("watch_url"),
-        "streams": streams,
-        "is_live": is_live,
+            "id": game_id,
+            "date_header": row.get("date_header"),
+            "sport": sport,
+            "time_unix": row.get("time_unix"),
+            "time": time_display,   # formatted time
+            "tournament": row.get("tournament"),
+            "tournament_url": row.get("tournament_url"),
+            "matchup": row.get("matchup"),
+            "watch_url": row.get("watch_url"),
+            "streams": streams,
+            "is_live": is_live,
         })
     return games
 
@@ -234,7 +232,16 @@ def game_detail(game_id):
         g for g in games
         if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
     ]
-    return render_template("game.html", game=game, other_games=other_games)
+
+    # 30% chance to try opening an ad in a new tab (handled in template JS)
+    open_ad = random.random() < 0.25
+
+    return render_template(
+        "game.html",
+        game=game,
+        other_games=other_games,
+        open_ad=open_ad,
+    )
 
 
 # ---------------------- SCHEDULER ----------------------

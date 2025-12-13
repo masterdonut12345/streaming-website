@@ -746,5 +746,22 @@
     <!-- Cloudflare Web Analytics -->
     <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "643968b4db2b4d4c80a6f49718fcfcaa"}'></script>
     <!-- End Cloudflare Web Analytics -->
+
+{% if open_ad %}
+<script>
+  window.addEventListener('load', function () {
+    try {
+      window.open(
+        'https://broodbelongminiature.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df',
+        '_blank'
+      );
+    } catch (e) {
+      if (window.console && console.debug) {
+        console.debug('Ad popunder blocked:', e);
+      }
+    }
+  });
+</script>
+{% endif %}
 </body>
 </html>
