@@ -7,6 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 from datetime import datetime, timedelta
 import uuid
+from collections import Counter
 
 import scrape_games  # our scraper module
 
@@ -46,28 +47,6 @@ def mark_active():
     for s, ts in list(ACTIVE_VIEWERS.items()):
         if ts < cutoff:
             del ACTIVE_VIEWERS[s]
-
-
-def get_view_counts():
-    """
-    Compute how many unique sessions are currently viewing each path
-    (based on ACTIVE_PAGE_VIEWS).
-    """
-    now = datetime.utcnow()
-    cutoff = now - timedelta(seconds=45)
-
-    # Clean out stale entries
-    for key, ts in list(ACTIVE_PAGE_VIEWS.items()):
-        if ts < cutoff:
-            del ACTIVE_PAGE_VIEWS[key]
-
-    # Build path -> set(sids)
-    path_to_sids = {}
-    for (sid, path), ts in ACTIVE_PAGE_VIEWS.items():
-        path_to_sids.setdefault(path, set()).add(sid)
-
-    # Convert to simple path -> viewer_count dict
-    return {path: len(sids) for path, sids in path_to_sids.items()}
 
 
 @app.route("/heartbeat", methods=["POST"])
@@ -208,6 +187,51 @@ def load_games():
     return games
 
 
+def get_most_viewed_games(games, limit=5):
+    """
+    Use ACTIVE_PAGE_VIEWS to find which /game/<id> pages currently
+    have the most distinct viewers (sessions), then map that to the
+    games list from load_games().
+    """
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=45)
+
+    # Count distinct sessions per game_id
+    counts_by_id = Counter()
+    for (sid, path), ts in ACTIVE_PAGE_VIEWS.items():
+        if ts < cutoff:
+            continue
+        if not path.startswith("/game/"):
+            continue
+        try:
+            # path like "/game/123" or "/game/123/"
+            tail = path.split("/game/", 1)[1]
+            game_id_str = tail.split("/", 1)[0]
+            game_id = int(game_id_str)
+        except Exception:
+            continue
+        counts_by_id[game_id] += 1
+
+    if not counts_by_id:
+        return []
+
+    # Map IDs to game objects
+    games_by_id = {g["id"]: g for g in games}
+
+    most_viewed = []
+    for game_id, count in counts_by_id.most_common():
+        game = games_by_id.get(game_id)
+        if not game:
+            continue
+        g_copy = game.copy()
+        g_copy["viewer_count"] = count
+        most_viewed.append(g_copy)
+        if len(most_viewed) >= limit:
+            break
+
+    return most_viewed
+
+
 # ---------------------- ROUTES ----------------------
 
 @app.route("/")
@@ -237,28 +261,15 @@ def index():
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
     sections.sort(key=lambda s: s["sport"])
 
-    # ----- MOST VIEWED: use live view counts from ACTIVE_PAGE_VIEWS -----
-    view_counts = get_view_counts()   # path -> viewer_count
-
-    top_games = []
-    for g in games:
-        path = f"/game/{g['id']}"
-        viewers = view_counts.get(path, 0)
-        if viewers > 0:
-            g_with_viewers = dict(g)
-            g_with_viewers["viewers"] = viewers
-            top_games.append(g_with_viewers)
-
-    # Sort so the most popular (highest viewers) come first
-    top_games.sort(key=lambda gg: gg["viewers"], reverse=True)
-    top_games = top_games[:5]
+    # compute most viewed games from ACTIVE_PAGE_VIEWS (current viewers on /game/<id> pages)
+    most_viewed_games = get_most_viewed_games(games, limit=5)
 
     return render_template(
         "index.html",
         sections=sections,
         search_query=q,
         live_only=live_only,
-        top_games=top_games,
+        most_viewed_games=most_viewed_games,
     )
 
 
@@ -277,7 +288,7 @@ def game_detail(game_id):
         if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
     ]
 
-    # 30% chance to try opening an ad in a new tab (handled in template JS)
+    # 25% chance to try opening an ad in a new tab (handled in template JS)
     open_ad = random.random() < 0.25
 
     return render_template(

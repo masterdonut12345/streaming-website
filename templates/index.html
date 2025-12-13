@@ -67,6 +67,15 @@
             }
         }
 
+        /* when screen is wide enough for left sidebar + main + right ad,
+           push main content between them so nothing overlaps */
+        @media (min-width: 1600px) {
+            .page-wrapper {
+                margin-left: 280px;   /* 230px sidebar + ~50px breathing room */
+                margin-right: 220px;  /* right skyscraper ad */
+            }
+        }
+
         /* === TOP NAV / BRAND BAR === */
         .top-nav {
             display: flex;
@@ -338,6 +347,16 @@
             background: var(--accent-soft);
             border-color: rgba(122, 162, 255, 0.85);
             color: #e2e8ff;
+        }
+
+        /* small live dot reused in various places */
+        .live-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: var(--live);
+            box-shadow: 0 0 8px rgba(255, 77, 106, 0.8);
         }
 
         /* === NOW PLAYING STRIP === */
@@ -674,59 +693,73 @@
             font-weight: 600;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            margin: 0 0 4px 0;
             color: #e0e7ff;
+            margin-bottom: 4px;
         }
 
-        .most-viewed-subtext {
-            margin: 0 0 8px 0;
+        .most-viewed-subtitle {
             font-size: 0.75rem;
             color: var(--muted);
+            margin-bottom: 8px;
         }
 
         .most-viewed-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .most-viewed-item + .most-viewed-item {
-            margin-top: 6px;
-        }
-
-        .most-viewed-item a {
-            display: block;
+        .most-viewed-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             padding: 6px 8px;
             border-radius: 10px;
             background: rgba(4, 7, 20, 0.9);
-            border: 1px solid rgba(159, 180, 255, 0.4);
+            border: 1px solid rgba(159, 180, 255, 0.5);
             color: #e2e7ff;
             text-decoration: none;
         }
 
-        .most-viewed-item a:hover {
+        .most-viewed-item:hover {
             background: rgba(20, 28, 60, 0.95);
-            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.8);
+            transform: translateY(-1px);
+            box-shadow: 0 12px 26px rgba(0, 0, 0, 0.7);
         }
 
-        .most-viewed-matchup {
-            display: block;
+        .mv-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mv-matchup {
+            font-size: 0.8rem;
             font-weight: 600;
-            font-size: 0.82rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .most-viewed-meta {
-            display: block;
-            font-size: 0.72rem;
+        .viewer-badge {
+            font-size: 0.7rem;
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(122, 162, 255, 0.7);
+            color: #dde4ff;
+            white-space: nowrap;
+        }
+
+        .mv-meta {
+            font-size: 0.7rem;
             color: #c7cffc;
-            margin-top: 2px;
+            opacity: 0.9;
         }
 
         /* Hide the left sidebar on smaller screens so it never overlaps content */
-        @media (max-width: 1200px) {
+        @media (max-width: 1599px) {
             .most-viewed-sidebar {
                 display: none;
             }
@@ -1018,30 +1051,6 @@
         {% endif %}
     </div>
 
-    {# FIXED LEFT-SIDE MOST VIEWED BOX (does not affect layout) #}
-    {% if top_games %}
-        <div class="most-viewed-sidebar">
-            <h3 class="most-viewed-title">Most Viewed</h3>
-            <p class="most-viewed-subtext">Games with the most viewers right now.</p>
-            <ul class="most-viewed-list">
-                {% for g in top_games %}
-                <li class="most-viewed-item">
-                    <a href="{{ url_for('game_detail', game_id=g.id) }}">
-                        <span class="most-viewed-matchup">
-                            {{ g.matchup }}
-                        </span>
-                        <span class="most-viewed-meta">
-                            {{ g.sport or 'Sport' }}
-                            {% if g.time %} • {{ g.time }}{% endif %}
-                            • {{ g.viewers }} viewer{% if g.viewers != 1 %}s{% endif %}
-                        </span>
-                    </a>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
     <!-- Fixed right-side 160x600 ad (does NOT push content down) -->
     <div class="vertical-ad-fixed">
         <script type="text/javascript">
@@ -1058,6 +1067,34 @@
           src="https://broodbelongminiature.com/29ef845582924216c628b8930841e3bb/invoke.js"
         ></script>
     </div>
+
+    {# LEFT fixed "Most Viewed" sidebar; appears only on wide screens via CSS #}
+    {% if most_viewed_games %}
+    <div class="most-viewed-sidebar">
+        <div class="most-viewed-title">Most Viewed</div>
+        <div class="most-viewed-subtitle">
+            Games with the most active viewers right now.
+        </div>
+        <div class="most-viewed-list">
+            {% for game in most_viewed_games %}
+                <a href="{{ url_for('game_detail', game_id=game.id) }}" class="most-viewed-item">
+                    <div class="mv-top-row">
+                        <div class="mv-matchup">
+                            {{ game.matchup }}
+                        </div>
+                        <div class="viewer-badge">
+                            {{ game.viewer_count }} viewer{% if game.viewer_count != 1 %}s{% endif %}
+                        </div>
+                    </div>
+                    <div class="mv-meta">
+                        {{ game.sport or 'Sport' }}
+                        {% if game.time %} • {{ game.time }}{% endif %}
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Footer with social links at the very bottom -->
     <footer>
