@@ -234,7 +234,6 @@ def game_detail(game_id):
         g for g in games
         if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
     ]
-
     return render_template("game.html", game=game, other_games=other_games)
 
 
