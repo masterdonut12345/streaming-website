@@ -19,12 +19,19 @@ EST = pytz.timezone("US/Eastern")
 UTC = pytz.UTC
 
 
-# ========= 1) SPORT71: TODAY'S GAMES =========
+# ========= 1) SPORT71: TODAY + TOMORROW'S GAMES =========
 def scrape_today_games_sport71() -> pd.DataFrame:
     """
-    Scrape today's games from sport71.pro and return a DataFrame
+    Scrape today's + tomorrow's games from sport71.pro and return a DataFrame
     with basic info, including watch_url.
     All date logic is done relative to US/Eastern.
+
+    After scraping, we:
+      - Keep games that are:
+          * live, OR
+          * in the future, OR
+          * missing a time (fallback)
+      - Drop games that are in the past AND not live.
     """
     try:
         req = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
@@ -57,8 +64,8 @@ def scrape_today_games_sport71() -> pd.DataFrame:
         date_tag = day_block.find("h3")
         date_text = date_tag.get_text(strip=True) if date_tag else None
 
-        # Only today's block
-        if date_text != today_str and date_text != tmrw_str:
+        # Only today's + tomorrow's blocks
+        if date_text not in (today_str, tmrw_str):
             continue
 
         for card in day_block.select("div.space-y-6 > div.bg-white"):
@@ -135,6 +142,22 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 )
 
     df = pd.DataFrame(rows)
+
+    if df.empty:
+        return df
+
+    # Filter out past non-live games
+    try:
+        now_est = datetime.now(EST)
+        if "time" in df.columns and "is_live" in df.columns:
+            df = df[
+                df["time"].isna()
+                | (df["time"] >= now_est)
+                | (df["is_live"] == True)
+            ]
+    except Exception as e:
+        print("[sport71][WARN] Failed to filter past non-live games:", e)
+
     return df
 
 
@@ -147,6 +170,10 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
     IMPORTANT: sharkstreams times are assumed to be listed in US/Eastern.
     We localize them as EST (no conversion from server local time).
+
+    After scraping, we:
+      - Keep games that are live OR in the future OR missing a time.
+      - Drop games that are in the past AND not live.
     """
     try:
         req = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
@@ -245,6 +272,22 @@ def scrape_today_games_shark() -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows)
+
+    if df.empty:
+        return df
+
+    # Filter out past non-live games
+    try:
+        now_est = datetime.now(EST)
+        if "time" in df.columns and "is_live" in df.columns:
+            df = df[
+                df["time"].isna()
+                | (df["time"] >= now_est)
+                | (df["is_live"] == True)
+            ]
+    except Exception as e:
+        print("[shark][WARN] Failed to filter past non-live games:", e)
+
     return df
 
 
@@ -275,7 +318,7 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                 "embed_url": embed_url,
                 "watch_url": watch_url,
             })
-        
+
         # If no iframe is found, extract the stream URLs from the page
         stream_links = soup.select("div.stream-picker a.stream-button")
         if stream_links:
@@ -283,7 +326,7 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                 stream_name = link.get_text(strip=True)
                 stream_page_url = link.get("href")
                 full_stream_url = urljoin(watch_url, stream_page_url)
-                
+
                 # Now, fetch the embed URL from the individual stream page
                 r_stream = requests.get(full_stream_url, headers=HEADERS, timeout=15)
                 if r_stream.status_code == 200:
@@ -333,6 +376,15 @@ def main() -> None:
         df_sport71["embed_url"] = df_sport71["streams"].apply(
             lambda streams: streams[0]["embed_url"] if streams else None
         )
+
+        # For *live* sport71 games, require an embed_url.
+        # Future (not-yet-live) games are allowed to have missing streams.
+        try:
+            df_sport71 = df_sport71[
+                (~df_sport71["is_live"]) | df_sport71["embed_url"].notna()
+            ]
+        except Exception as e:
+            print("[main][WARN] Could not filter sport71 rows by embed_url:", e)
 
     # 2) sharkstreams games (already come with streams + embed_url)
     df_shark = scrape_today_games_shark()

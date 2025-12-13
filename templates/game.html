@@ -326,7 +326,7 @@
             font-size: 0.95rem;
         }
 
-        /* MULTI-VIEW TITLE / TOGGLE */
+        /* MULTI-VIEW / VIEW CONTROLS */
         .multi-view-title {
             margin-top: 18px;
             margin-bottom: 8px;
@@ -337,6 +337,12 @@
             gap: 8px;
             justify-content: space-between;
             flex-wrap: wrap;
+        }
+
+        .multi-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .multi-toggle-button {
@@ -355,6 +361,107 @@
         .multi-toggle-button:hover {
             background: var(--button-hover);
             border-color: rgba(122, 162, 255, 0.7);
+        }
+
+        /* ========== FULL-PAGE PLAYER MODE FIXED ========== */
+
+        body.full-page-player {
+            overflow: hidden;
+            background: #000;
+        }
+
+        body.full-page-player .page-wrapper {
+            max-width: none;
+            padding: 0;
+            height: 100vh;
+        }
+
+        body.full-page-player header,
+        body.full-page-player .back-link,
+        body.full-page-player footer {
+            display: none;
+        }
+
+        body.full-page-player .player-card {
+            position: fixed;
+            inset: 0;
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 9999;
+        }
+
+        /* hide small “Live Stream” title in full-page */
+        body.full-page-player .player-card h3 {
+            display: none;
+        }
+
+        /* main player area takes full height */
+        body.full-page-player .player-layout {
+            flex: 1 1 auto;
+            height: 100%;
+        }
+
+        /* single view: big iframe fills entire area */
+        body.full-page-player .player-layout.single .player-slot[data-slot="0"],
+        body.full-page-player .player-layout.single .player-slot[data-slot="0"] iframe {
+            height: 100%;
+        }
+
+        /* multi view: true 2x2 fullscreen grid */
+        body.full-page-player .player-layout.multi {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0;
+            height: 100%;
+        }
+
+        body.full-page-player .player-layout.multi .player-slot,
+        body.full-page-player .player-layout.multi .player-slot iframe {
+            height: 100%;
+            border-radius: 0;
+        }
+
+        body.full-page-player .ad-slot {
+            display: none;
+        }
+
+        /* float stream picker at the top-center in full-page mode */
+        body.full-page-player #stream-picker {
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10001;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 10px;
+            border-radius: 999px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.75);
+        }
+
+        /* float multi/full-page controls at bottom-center */
+        body.full-page-player .multi-view-title {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0;
+            z-index: 10001;
+        }
+
+        body.full-page-player .multi-view-title span:first-child {
+            display: none;
+        }
+
+        body.full-page-player .multi-controls {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 8px;
+            border-radius: 999px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
         }
     </style>
 </head>
@@ -435,7 +542,8 @@
                             id="game-iframe"
                             src="{{ first_stream.embed_url }}"
                             allowfullscreen
-                            scrolling="no">
+                            scrolling="no"
+                            allow="autoplay; encrypted-media; picture-in-picture; fullscreen">
                         </iframe>
                     </div>
 
@@ -463,14 +571,18 @@
                                             {% endfor %}
                                         </select>
                                     </div>
-                                    <iframe allowfullscreen scrolling="no"></iframe>
+                                    <iframe
+                                        allowfullscreen
+                                        scrolling="no"
+                                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen">
+                                    </iframe>
                                 </div>
                             {% endfor %}
                         {% endif %}
                     {% endif %}
                 </div>
 
-                <!-- Buttons to switch this game's streams -->
+                <!-- Buttons to switch THIS game's streams -->
                 {% if game.streams|length > 1 %}
                     <div class="stream-picker" id="stream-picker">
                         {% for s in game.streams %}
@@ -485,15 +597,26 @@
                     </div>
                 {% endif %}
 
-                <!-- Multi-view toggle (uses the grid above) -->
-                {% if other_games and other_games|length > 0 %}
-                    <div class="multi-view-title">
-                        <span>Multi-view: watch up to 4 games at once</span>
-                        <button type="button" class="multi-toggle-button" id="multi-toggle">
-                            Enable multi-view
+                <!-- View controls: multi-view (if available) + full-page -->
+                <div class="multi-view-title">
+                    <span>
+                        {% if other_games and other_games|length > 0 %}
+                            Multi-view & size controls
+                        {% else %}
+                            View size controls
+                        {% endif %}
+                    </span>
+                    <div class="multi-controls">
+                        {% if other_games and other_games|length > 0 %}
+                            <button type="button" class="multi-toggle-button" id="multi-toggle">
+                                Enable multi-view
+                            </button>
+                        {% endif %}
+                        <button type="button" class="multi-toggle-button" id="fullscreen-toggle">
+                            Enter full-page
                         </button>
                     </div>
-                {% endif %}
+                </div>
 
                 <!-- Ad under player -->
                 <div class="ad-slot">
@@ -513,15 +636,16 @@
         {% endif %}
     </div>
 
-    <!-- Stream switching + multiview JS -->
+    <!-- Stream switching + multiview + full-page JS -->
     <script>
         (function() {
-            const mainIframe     = document.getElementById('game-iframe');
-            const picker         = document.getElementById('stream-picker');
-            const playerLayout   = document.getElementById('player-layout');
-            const multiToggle    = document.getElementById('multi-toggle');
+            const mainIframe       = document.getElementById('game-iframe');
+            const picker           = document.getElementById('stream-picker');
+            const playerLayout     = document.getElementById('player-layout');
+            const multiToggle      = document.getElementById('multi-toggle');
+            const fullscreenToggle = document.getElementById('fullscreen-toggle');
 
-            // 1) Main stream switching for THIS game (same as before)
+            // 1) Main stream switching for THIS game
             if (picker && mainIframe) {
                 picker.addEventListener('click', function (evt) {
                     const btn = evt.target.closest('.stream-button');
@@ -577,6 +701,17 @@
                             titleEl.textContent = 'Empty slot';
                         }
                     });
+                });
+            }
+
+            // 3) Full-page mode (works for single OR multi)
+            if (fullscreenToggle) {
+                let fullOn = false;
+
+                fullscreenToggle.addEventListener('click', function () {
+                    fullOn = !fullOn;
+                    document.body.classList.toggle('full-page-player', fullOn);
+                    fullscreenToggle.textContent = fullOn ? 'Exit full-page' : 'Enter full-page';
                 });
             }
         })();
