@@ -109,7 +109,7 @@ def safe_lower(value):
 def make_stable_id(row):
     """
     Build a stable integer ID from key fields so that the same game
-    always gets the same ID even if CSV row order changes.
+    always gets the same ID even if CSV row order or row index changes.
     """
     key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
     digest = hashlib.md5(key.encode("utf-8")).hexdigest()
@@ -157,11 +157,8 @@ def load_games():
                 print(f"[load_games][ERROR] Error parsing streams for row {idx}: {e}")
                 streams = []
 
-        # Stable game ID:
-        if "id" in df.columns and not pd.isna(row.get("id")):
-            game_id = int(row["id"])
-        else:
-            game_id = make_stable_id(row)
+        # ALWAYS use a stable ID derived from game fields
+        game_id = make_stable_id(row)
 
         # normalize sport
         raw_sport = row.get("sport")
