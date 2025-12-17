@@ -41,9 +41,7 @@
             --live: #ff4d6a;
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -62,9 +60,7 @@
 
         /* give room for fixed ad on big screens */
         @media (min-width: 1100px) {
-            .page-wrapper {
-                margin-right: 220px;
-            }
+            .page-wrapper { margin-right: 220px; }
         }
 
         /* === TOP NAV / BRAND BAR === */
@@ -130,9 +126,7 @@
             gap: 20px;
         }
 
-        .header-text {
-            flex: 1 1 auto;
-        }
+        .header-text { flex: 1 1 auto; }
 
         h1 {
             margin: 0 0 4px 0;
@@ -149,10 +143,7 @@
             color: var(--muted);
         }
 
-        .tagline {
-            margin: 0;
-            color: var(--muted);
-        }
+        .tagline { margin: 0; color: var(--muted); }
 
         .live-counter-pill {
             display: inline-flex;
@@ -181,14 +172,8 @@
         }
 
         @media (max-width: 900px) {
-            .header-container {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .ad-slot-top-right {
-                text-align: left;
-                width: 100%;
-            }
+            .header-container { flex-direction: column; align-items: flex-start; }
+            .ad-slot-top-right { text-align: left; width: 100%; }
         }
 
         /* === Cross-promo banner === */
@@ -205,23 +190,9 @@
             gap: 12px;
         }
 
-        .promo-left {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .promo-title {
-            font-size: 0.95rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            color: #e8ecff;
-        }
-
-        .promo-subtitle {
-            font-size: 0.82rem;
-            color: var(--muted);
-        }
+        .promo-left { display: flex; flex-direction: column; gap: 3px; }
+        .promo-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; color: #e8ecff; }
+        .promo-subtitle { font-size: 0.82rem; color: var(--muted); }
 
         .promo-cta {
             flex: 0 0 auto;
@@ -255,14 +226,8 @@
         }
 
         @media (max-width: 650px) {
-            .promo-strip {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .promo-cta {
-                width: 100%;
-                justify-content: center;
-            }
+            .promo-strip { flex-direction: column; align-items: flex-start; }
+            .promo-cta { width: 100%; justify-content: center; }
         }
 
         /* search bar */
@@ -273,11 +238,7 @@
             z-index: 5;
         }
 
-        @media (max-width: 900px) {
-            .search-shell {
-                position: static;
-            }
-        }
+        @media (max-width: 900px) { .search-shell { position: static; } }
 
         .search-bar {
             display: flex;
@@ -303,9 +264,7 @@
             transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
         }
 
-        .search-bar input[type="text"]::placeholder {
-            color: #8a8a8a;
-        }
+        .search-bar input[type="text"]::placeholder { color: #8a8a8a; }
 
         .search-bar input[type="text"]:focus {
             border-color: var(--accent);
@@ -313,11 +272,7 @@
             background: #11111b;
         }
 
-        .search-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
+        .search-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
         .search-bar button {
             padding: 8px 14px;
@@ -380,10 +335,7 @@
             font-size: 0.8rem;
         }
 
-        .quick-filters-label {
-            color: var(--muted);
-            margin-right: 4px;
-        }
+        .quick-filters-label { color: var(--muted); margin-right: 4px; }
 
         .filter-chip {
             border-radius: 999px;
@@ -398,9 +350,7 @@
             transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
         }
 
-        .filter-chip span.emoji {
-            font-size: 0.9rem;
-        }
+        .filter-chip span.emoji { font-size: 0.9rem; }
 
         .filter-chip:hover {
             background: rgba(20, 22, 40, 0.96);
@@ -442,16 +392,9 @@
             color: #e0e7ff;
         }
 
-        .now-playing-subtitle {
-            font-size: 0.8rem;
-            color: var(--muted);
-        }
+        .now-playing-subtitle { font-size: 0.8rem; color: var(--muted); }
 
-        .now-playing-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        .now-playing-list { display: flex; flex-wrap: wrap; gap: 8px; }
 
         .now-playing-item {
             display: inline-flex;
@@ -481,11 +424,7 @@
             max-width: 210px;
         }
 
-        .now-playing-meta {
-            font-size: 0.7rem;
-            color: #c7cffc;
-            opacity: 0.9;
-        }
+        .now-playing-meta { font-size: 0.7rem; color: #c7cffc; opacity: 0.9; }
 
         /* SPORT SECTIONS */
         .sport-section {
@@ -508,11 +447,7 @@
             border-bottom: 1px solid rgba(122, 162, 255, 0.35);
         }
 
-        .sport-header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .sport-header-left { display: flex; align-items: center; gap: 10px; }
 
         .sport-pill {
             width: 8px;
@@ -522,10 +457,7 @@
             opacity: 0.9;
         }
 
-        .sport-title-text {
-            display: flex;
-            flex-direction: column;
-        }
+        .sport-title-text { display: flex; flex-direction: column; }
 
         .sport-title-text h2 {
             margin: 0;
@@ -534,11 +466,7 @@
             text-transform: uppercase;
         }
 
-        .sport-subtitle {
-            font-size: 0.78rem;
-            color: var(--muted);
-            margin-top: 2px;
-        }
+        .sport-subtitle { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 
         .sport-toggle-icon {
             font-size: 1rem;
@@ -555,14 +483,8 @@
             background: linear-gradient(135deg, rgba(80, 130, 255, 0.5), rgba(5, 8, 24, 0.97));
         }
 
-        .sport-body {
-            padding: 8px 10px 12px;
-            display: none;
-        }
-
-        .sport-section.open .sport-body {
-            display: block;
-        }
+        .sport-body { padding: 8px 10px 12px; display: none; }
+        .sport-section.open .sport-body { display: block; }
 
         /* GRID OF GAME CARDS */
         .sport-games-grid {
@@ -595,20 +517,9 @@
             margin-bottom: 6px;
         }
 
-        .game-title {
-            font-weight: 600;
-            font-size: 1.02em;
-        }
-
-        .game-title a {
-            color: #e5e9ff;
-            text-decoration: none;
-        }
-
-        .game-title a:hover {
-            color: #ffffff;
-            text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
-        }
+        .game-title { font-weight: 600; font-size: 1.02em; }
+        .game-title a { color: #e5e9ff; text-decoration: none; }
+        .game-title a:hover { color: #ffffff; text-shadow: 0 0 8px rgba(122, 162, 255, 0.4); }
 
         .game-tags-row {
             display: flex;
@@ -618,12 +529,7 @@
             margin-bottom: 6px;
         }
 
-        .game-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            font-size: 0.72rem;
-        }
+        .game-tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.72rem; }
 
         .tag-pill {
             padding: 3px 8px;
@@ -634,10 +540,7 @@
             white-space: nowrap;
         }
 
-        .tag-pill.outline {
-            border-style: dashed;
-            opacity: 0.85;
-        }
+        .tag-pill.outline { border-style: dashed; opacity: 0.85; }
 
         .game-time {
             font-size: 0.8rem;
@@ -646,19 +549,9 @@
             white-space: nowrap;
         }
 
-        .meta {
-            font-size: 0.82rem;
-            color: var(--muted);
-            margin-top: 4px;
-            line-height: 1.45;
-        }
+        .meta { font-size: 0.82rem; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+        .meta strong { color: #d0d0d0; font-weight: 500; }
 
-        .meta strong {
-            color: #d0d0d0;
-            font-weight: 500;
-        }
-
-        /* NEW: live pill shown next to each live game */
         .live-button {
             font-size: 0.7rem;
             text-transform: uppercase;
@@ -688,10 +581,7 @@
             color: var(--accent);
             transition: color 0.15s ease, text-shadow 0.18s ease;
         }
-        a:hover {
-            color: #a4bcff;
-            text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
-        }
+        a:hover { color: #a4bcff; text-shadow: 0 0 8px rgba(122, 162, 255, 0.4); }
 
         .empty-state {
             margin-top: 40px;
@@ -707,8 +597,8 @@
         /* Fixed right-side vertical ad (does NOT push content down) */
         .vertical-ad-fixed {
             position: fixed;
-            top: 120px;  /* just below the header */
-            right: 20px; /* slight inset from the edge */
+            top: 120px;
+            right: 20px;
             width: 160px;
             height: 600px;
             z-index: 100;
@@ -717,14 +607,9 @@
             box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85);
         }
 
-        /* Hide the tall skyscraper on smaller screens */
-        @media (max-width: 1100px) {
-            .vertical-ad-fixed {
-                display: none;
-            }
-        }
+        @media (max-width: 1100px) { .vertical-ad-fixed { display: none; } }
 
-        /* ===== MOST VIEWED FIXED LEFT SIDEBAR (does not affect layout) ===== */
+        /* ===== MOST VIEWED FIXED LEFT SIDEBAR ===== */
         .vertical-most-viewed-fixed {
             position: fixed;
             top: 120px;
@@ -763,11 +648,7 @@
             color: var(--muted);
         }
 
-        .most-viewed-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+        .most-viewed-list { display: flex; flex-direction: column; gap: 6px; }
 
         .mv-item {
             display: block;
@@ -805,19 +686,10 @@
             text-overflow: ellipsis;
         }
 
-        .mv-viewers {
-            font-size: 0.72rem;
-            color: #ffdfe7;
-        }
+        .mv-viewers { font-size: 0.72rem; color: #ffdfe7; }
 
-        /* Only show left sidebar on large enough screens so it doesn't overlap main content */
-        @media (max-width: 1400px) {
-            .vertical-most-viewed-fixed {
-                display: none;
-            }
-        }
+        @media (max-width: 1400px) { .vertical-most-viewed-fixed { display: none; } }
 
-        /* footer */
         footer {
             margin-top: 20px;
             padding: 12px 20px 24px;
@@ -825,18 +697,10 @@
             background: rgba(3, 3, 8, 0.9);
         }
 
-        footer .footer-inner {
-            max-width: 1100px;
-            margin: 0 auto;
-        }
+        footer .footer-inner { max-width: 1100px; margin: 0 auto; }
 
-        footer p {
-            margin: 0 0 6px 0;
-            font-size: 0.8rem;
-            color: var(--muted);
-        }
+        footer p { margin: 0 0 6px 0; font-size: 0.8rem; color: var(--muted); }
 
-        /* social links row */
         .social-row {
             margin-top: 8px;
             display: flex;
@@ -859,9 +723,7 @@
             transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
         }
 
-        .social-link span.handle {
-            color: var(--accent);
-        }
+        .social-link span.handle { color: var(--accent); }
 
         .social-link:hover {
             background: rgba(18, 18, 28, 0.95);
@@ -950,11 +812,8 @@
                     value="{{ search_query or '' }}"
                 >
                 <div class="search-actions">
-                    <button type="submit">
-                        🔍 Search
-                    </button>
+                    <button type="submit">🔍 Search</button>
 
-                    <!-- Live-only toggle button -->
                     <button
                         type="button"
                         class="live-filter-button {% if live_only %}active{% endif %}"
@@ -972,37 +831,22 @@
                     {% endif %}
                 </div>
 
-                {# Preserve live_only when searching #}
                 {% if live_only %}
                     <input type="hidden" name="live_only" value="1">
                 {% endif %}
             </form>
 
-            <!-- Quick sport filter chips -->
             <div class="quick-filters">
                 <span class="quick-filters-label">Quick filters:</span>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('NFL')">
-                    <span class="emoji">🏈</span> NFL
-                </button>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('Basketball')">
-                    <span class="emoji">🏀</span> Basketball
-                </button>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('ICE HOCKEY')">
-                    <span class="emoji">🏒</span> ICE HOCKEY
-                </button>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('MLB')">
-                    <span class="emoji">⚾</span> MLB
-                </button>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('Soccer')">
-                    <span class="emoji">⚽</span> Soccer
-                </button>
-                <button class="filter-chip" type="button" onclick="applyFilterChip('')">
-                   Clear
-                </button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('NFL')"><span class="emoji">🏈</span> NFL</button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('Basketball')"><span class="emoji">🏀</span> Basketball</button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('ICE HOCKEY')"><span class="emoji">🏒</span> ICE HOCKEY</button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('MLB')"><span class="emoji">⚾</span> MLB</button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('Soccer')"><span class="emoji">⚽</span> Soccer</button>
+                <button class="filter-chip" type="button" onclick="applyFilterChip('')">Clear</button>
             </div>
         </div>
 
-        {# ==== NOW PLAYING (LIVE GAMES ACROSS ALL SPORTS) ==== #}
         {% if sections %}
             {% set ns = namespace(live_games=[]) %}
             {% for section in sections %}
@@ -1023,10 +867,7 @@
                     </div>
                     <div class="now-playing-list">
                         {% for game in ns.live_games[:5] %}
-                            <a
-                              href="{{ url_for('game_detail', game_id=game.id) }}"
-                              class="now-playing-item"
-                            >
+                            <a href="{{ url_for('game_detail', game_id=game.id) }}" class="now-playing-item">
                                 <span class="live-dot"></span>
                                 <span class="now-playing-matchup">{{ game.matchup }}</span>
                                 <span class="now-playing-meta">
@@ -1071,9 +912,7 @@
                                             </a>
                                         </div>
                                         {% if game.is_live %}
-                                            <button class="live-button" type="button">
-                                                LIVE
-                                            </button>
+                                            <button class="live-button" type="button">LIVE</button>
                                         {% endif %}
                                     </div>
 
@@ -1134,7 +973,6 @@
         ></script>
     </div>
 
-    {# Fixed left-side "Most Viewed" box, independent of layout #}
     {% if most_viewed_games %}
         <div class="vertical-most-viewed-fixed">
             <div class="most-viewed-box">
@@ -1159,7 +997,6 @@
         </div>
     {% endif %}
 
-    <!-- Footer with social links at the very bottom -->
     <footer>
         <div class="footer-inner">
             <p>Follow TheStreamDen:</p>
@@ -1175,18 +1012,13 @@
     </footer>
 
     <script>
-        // toggle the live_only filter in the URL
         function toggleLiveOnly(currentlyOn) {
             const url = new URL(window.location.href);
-            if (currentlyOn) {
-                url.searchParams.delete('live_only');
-            } else {
-                url.searchParams.set('live_only', '1');
-            }
+            if (currentlyOn) url.searchParams.delete('live_only');
+            else url.searchParams.set('live_only', '1');
             window.location.href = url.toString();
         }
 
-        // Quick filter chips: set query and submit
         function applyFilterChip(term) {
             const input = document.getElementById('searchInput');
             if (!input) return;
@@ -1195,7 +1027,6 @@
             if (form) form.submit();
         }
 
-        // Make each sport-section collapsible
         document.addEventListener('DOMContentLoaded', function () {
             const sections = document.querySelectorAll('.sport-section');
             sections.forEach(function (sec, index) {
@@ -1206,10 +1037,7 @@
                     sec.classList.toggle('open');
                 });
 
-                // Open the first section by default
-                if (index === 0) {
-                    sec.classList.add('open');
-                }
+                if (index === 0) sec.classList.add('open');
             });
         });
     </script>
@@ -1222,6 +1050,13 @@
     <script
       type="text/javascript"
       src="https://broodbelongminiature.com/0f/a2/4c/0fa24c36bd8ef534a07b2aebe1ba89c3.js"
+    ></script>
+
+    <!-- NEW: Adsterra ad unit (added) -->
+    <script
+      type="text/javascript"
+      defer
+      src="https://graduatedoutside.com/10/0b/5c/100b5c0f06c917d350ecd499f4f7fa16.js"
     ></script>
 </body>
 </html>
