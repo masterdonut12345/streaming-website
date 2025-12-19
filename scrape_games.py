@@ -5,7 +5,9 @@ import pandas as pd
 import pytz
 import re
 from urllib.parse import urljoin
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+import ast
+import os
 
 BASE_URL_SPORT71 = "https://sport7.pro"
 BASE_URL_SHARK = "https://sharkstreams.net/"
@@ -17,6 +19,8 @@ HEADERS = {
 # Define time zones
 EST = pytz.timezone("US/Eastern")
 UTC = pytz.UTC
+
+OUTPUT_FILE = "today_games_with_all_streams.csv"
 
 
 # ========= 1) SPORT71: TODAY + TOMORROW'S GAMES =========
@@ -52,7 +56,6 @@ def scrape_today_games_sport71() -> pd.DataFrame:
         print("[sport71][ERROR] Could not find <section id='upcoming-events'> — page may be JS-rendered.")
         return pd.DataFrame()
 
-    # Use "today" in EST so server timezone (UTC) doesn't mess us up
     today_est = datetime.now(EST)
     tmrw_est = today_est + timedelta(days=1)
     today_str = f"{today_est.strftime('%A')}, {today_est.strftime('%B')} {today_est.day}, {today_est.year}"
@@ -64,7 +67,6 @@ def scrape_today_games_sport71() -> pd.DataFrame:
         date_tag = day_block.find("h3")
         date_text = date_tag.get_text(strip=True) if date_tag else None
 
-        # Only today's + tomorrow's blocks
         if date_text not in (today_str, tmrw_str):
             continue
 
@@ -92,7 +94,6 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 if unix_time:
                     try:
                         ts_ms = int(unix_time)
-                        # Make this explicitly UTC, then convert to EST
                         dt_utc = datetime.fromtimestamp(ts_ms / 1000.0, tz=UTC)
                         event_dt = dt_utc.astimezone(EST)
                     except Exception as e:
@@ -190,7 +191,6 @@ def scrape_today_games_shark() -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
 
     for row_div in soup.find_all("div", class_="row"):
-        # date/time
         date_span = row_div.find("span", class_="ch-date")
         if not date_span:
             continue
@@ -198,21 +198,16 @@ def scrape_today_games_shark() -> pd.DataFrame:
         date_str = date_span.get_text(strip=True)
         try:
             naive_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            # Treat this as a *local EST time*, not server local or UTC
             event_dt = EST.localize(naive_dt)
         except Exception:
             print(f"[shark][ERROR] Failed to parse date: {date_str}")
             continue
 
-        # category (sport)
         cat_span = row_div.find("span", class_="ch-category")
         sport_name = cat_span.get_text(strip=True) if cat_span else "Unknown"
 
-        # matchup / channel name
         name_span = row_div.find("span", class_="ch-name")
         raw_matchup = name_span.get_text(strip=True) if name_span else "Unknown"
-
-        # mark SharkStreams entries as alternative links
         matchup = raw_matchup
 
         embed_link = None
@@ -239,18 +234,10 @@ def scrape_today_games_shark() -> pd.DataFrame:
             continue
 
         embed_link = urljoin(BASE_URL_SHARK, embed_link)
-
-        # Use the EST-aware datetime to compute unix time
         time_unix = int(event_dt.timestamp() * 1000)
 
-        streams = [
-            {
-                "label": "SharkStreams",
-                "embed_url": embed_link,
-            }
-        ]
+        streams = [{"label": "SharkStreams", "embed_url": embed_link}]
 
-        # Determine if the game is live (based on EST)
         now_est = datetime.now(EST)
         is_live = event_dt <= now_est <= event_dt + timedelta(hours=2.5)
 
@@ -272,19 +259,16 @@ def scrape_today_games_shark() -> pd.DataFrame:
         )
 
     df = pd.DataFrame(rows)
-
     if df.empty:
         return df
 
-    # Filter out past non-live games
     try:
         now_est = datetime.now(EST)
-        if "time" in df.columns and "is_live" in df.columns:
-            df = df[
-                df["time"].isna()
-                | (df["time"] >= now_est)
-                | (df["is_live"] == True)
-            ]
+        df = df[
+            df["time"].isna()
+            | (df["time"] >= now_est)
+            | (df["is_live"] == True)
+        ]
     except Exception as e:
         print("[shark][WARN] Failed to filter past non-live games:", e)
 
@@ -295,7 +279,7 @@ def scrape_today_games_shark() -> pd.DataFrame:
 def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, Any]]:
     """
     Given a sport71-style watch URL, extract the stream URLs from it.
-    Returns a list of streams: each one is a dictionary with label and embed_url.
+    Returns a list of streams: each one is a dict with label + embed_url (+ watch_url for traceability).
     """
     if not watch_url:
         return []
@@ -309,17 +293,15 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
         soup = BeautifulSoup(r.text, "html.parser")
         streams: List[Dict[str, Any]] = []
 
-        # Try to extract the main embed link (the iframe)
         iframe = soup.find("iframe")
         if iframe and iframe.get("src"):
             embed_url = iframe.get("src")
             streams.append({
-                "label": "Main Stream",  # Default label for the main stream
+                "label": "Main Stream",
                 "embed_url": embed_url,
                 "watch_url": watch_url,
             })
 
-        # If no iframe is found, extract the stream URLs from the page
         stream_links = soup.select("div.stream-picker a.stream-button")
         if stream_links:
             for link in stream_links:
@@ -327,7 +309,6 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                 stream_page_url = link.get("href")
                 full_stream_url = urljoin(watch_url, stream_page_url)
 
-                # Now, fetch the embed URL from the individual stream page
                 r_stream = requests.get(full_stream_url, headers=HEADERS, timeout=15)
                 if r_stream.status_code == 200:
                     stream_soup = BeautifulSoup(r_stream.text, "html.parser")
@@ -346,39 +327,13 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
         return []
 
 
-# ========= 4) EXTRACT EMBED URL (currently unused, kept for reference) =========
-def extract_embed_url_from_soup(soup: BeautifulSoup) -> Optional[str]:
-    """
-    Given a BeautifulSoup object of a watch page,
-    extract the iframe src from <pre id="embed-code">.
-    """
-    pre = soup.find("pre", id="embed-code")
-    if not pre:
-        return None
-
-    embed_code_text = pre.get_text(" ", strip=True)
-    m = re.search(r'src="([^"]+)"', embed_code_text)
-    if not m:
-        return None
-
-    embed_url = m.group(1)
-    return embed_url
-
-
-# ========= 5) COMBINE SIMILAR GAMES (team-order–independent) =========
-
+# ========= 4) MATCHUP NORMALIZATION =========
 TEAM_SEP_REGEX = re.compile(
     r'\bvs\b|\bvs.\b|\bv\b|\bv.\b| - | – | — | @ ',
     re.IGNORECASE,
 )
 
 def _normalize_team_name(team: str) -> str:
-    """
-    Normalize a single team string:
-      - lowercase
-      - strip non-alphanumeric
-    e.g. "New York Knicks" -> "newyorkknicks"
-    """
     if not isinstance(team, str):
         return ""
     s = team.lower()
@@ -386,42 +341,162 @@ def _normalize_team_name(team: str) -> str:
     return s
 
 def make_matchup_key(name: Any) -> str:
-    """
-    Build a team-order–independent key for a matchup.
-    Examples:
-      "Orlando Magic v New York Knicks"
-      "New York Knicks vs. Orlando Magic"
-        -> same key, e.g. "newyorkknicks__orlandomagic"
-
-    If we can't split into at least two sides, fall back
-    to a simple normalized string.
-    """
     if not isinstance(name, str):
         return ""
-
-    # Split on vs / v / - / @ etc.
     parts = TEAM_SEP_REGEX.split(name)
     teams = [_normalize_team_name(p) for p in parts]
-    teams = [t for t in teams if t]  # drop empty
-
+    teams = [t for t in teams if t]
     if len(teams) >= 2:
-        # Only care about the first two sides (usual games)
         t1, t2 = sorted(teams[:2])
         return f"{t1}__{t2}"
+    return _normalize_team_name(name)
+
+def _row_game_key(row: Dict[str, Any]) -> Tuple[Any, str, str]:
+    """
+    Stable key for merging:
+      (date_key, sport_lower, matchup_key)
+
+    date_key:
+      - if time is present -> time.date()
+      - else -> date_header string
+    """
+    sport = (row.get("sport") or "").strip().lower()
+    matchup = row.get("matchup") or ""
+    matchup_key = make_matchup_key(matchup)
+
+    time_val = row.get("time")
+    date_key: Any
+    if isinstance(time_val, (datetime, pd.Timestamp)):
+        date_key = time_val.date()
     else:
-        # Fallback for weird cases / channels
-        return _normalize_team_name(name)
+        date_key = (row.get("date_header") or "").strip()
 
+    return (date_key, sport, matchup_key)
+
+
+# ========= 5) STREAM PARSING / MERGING (PRESERVE MANUAL STREAMS) =========
+def _parse_streams_cell(val: Any) -> List[Dict[str, Any]]:
+    """
+    CSV stores streams as a string like "[{'label': ..., 'embed_url': ...}]".
+    Convert into list[dict]. If already list, return as-is.
+    """
+    if isinstance(val, list):
+        return [x for x in val if isinstance(x, dict)]
+    if val is None:
+        return []
+    if isinstance(val, float) and pd.isna(val):
+        return []
+    if isinstance(val, str):
+        s = val.strip()
+        if not s:
+            return []
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list):
+                return [x for x in parsed if isinstance(x, dict)]
+        except Exception:
+            return []
+    return []
+
+def _dedup_streams_keep_order(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen = set()
+    out = []
+    for st in streams:
+        if not isinstance(st, dict):
+            continue
+        url = (st.get("embed_url") or "").strip()
+        if not url:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append(st)
+    return out
+
+def merge_existing_csv_streams(df_new: pd.DataFrame, existing_csv_path: str) -> pd.DataFrame:
+    """
+    Merge any streams already present in an existing CSV into df_new.
+    Existing streams come FIRST (so manually-added ones are preserved and remain prominent).
+    """
+    if df_new.empty:
+        return df_new
+
+    if not os.path.exists(existing_csv_path):
+        return df_new
+
+    try:
+        df_old = pd.read_csv(existing_csv_path)
+    except Exception as e:
+        print(f"[merge][WARN] Could not read existing CSV {existing_csv_path}: {e}")
+        return df_new
+
+    if df_old.empty:
+        return df_new
+
+    # Normalize old rows into a dict by the same game key
+    old_by_key: Dict[Tuple[Any, str, str], Dict[str, Any]] = {}
+
+    for _, r in df_old.iterrows():
+        row_dict = r.to_dict()
+
+        # parse old time
+        t = row_dict.get("time")
+        if isinstance(t, str) and t.strip():
+            # pandas may store timezone info or just string; try parse
+            try:
+                # let pandas parse; if timezone missing assume EST
+                parsed = pd.to_datetime(t, errors="coerce")
+                if pd.notna(parsed):
+                    if parsed.tzinfo is None:
+                        parsed = EST.localize(parsed.to_pydatetime())
+                    row_dict["time"] = parsed.to_pydatetime()
+            except Exception:
+                pass
+
+        row_dict["streams"] = _parse_streams_cell(row_dict.get("streams"))
+
+        key = _row_game_key(row_dict)
+        old_by_key[key] = row_dict
+
+    # Merge into new df rows
+    merged_rows: List[Dict[str, Any]] = []
+    for _, r in df_new.iterrows():
+        new_row = r.to_dict()
+
+        # ensure streams list
+        new_streams = _parse_streams_cell(new_row.get("streams"))
+        new_row["streams"] = new_streams
+
+        key = _row_game_key(new_row)
+        old_row = old_by_key.get(key)
+
+        if old_row:
+            old_streams = _parse_streams_cell(old_row.get("streams"))
+            # existing first (preserve manual)
+            combined = old_streams + new_streams
+            combined = _dedup_streams_keep_order(combined)
+            new_row["streams"] = combined
+
+            # If embed_url missing, set from first combined
+            if not new_row.get("embed_url") and combined:
+                new_row["embed_url"] = combined[0].get("embed_url")
+
+            # Also preserve old embed_url if new missing
+            if not new_row.get("embed_url") and old_row.get("embed_url"):
+                new_row["embed_url"] = old_row.get("embed_url")
+
+        # Always re-dedup as last step
+        new_row["streams"] = _dedup_streams_keep_order(new_row.get("streams") or [])
+        if (not new_row.get("embed_url")) and new_row["streams"]:
+            new_row["embed_url"] = new_row["streams"][0].get("embed_url")
+
+        merged_rows.append(new_row)
+
+    return pd.DataFrame(merged_rows)
+
+
+# ========= 6) COMBINE SIMILAR GAMES (team-order–independent) =========
 def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Combine rows that represent the same game (e.g. Sport71 + SharkStreams)
-    into a single row with merged `streams` and a single `embed_url`.
-
-    Group key: (game_date, sport, matchup_key)
-      - game_date: date part of `time` if available, else date_header
-      - sport: lowercase trimmed string
-      - matchup_key: team-order–independent key from make_matchup_key()
-    """
     if df.empty:
         return df
 
@@ -431,7 +506,6 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
         sport = (row.get("sport") or "").strip()
         matchup = row.get("matchup") or ""
 
-        # Prefer actual datetime for date key if available
         time_val = row.get("time")
         if isinstance(time_val, (datetime, pd.Timestamp)):
             date_key = time_val.date()
@@ -442,54 +516,35 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
         key = (date_key, sport.lower(), matchup_key)
 
         if key not in combined:
-            # Start with a copy
             new_row = row.to_dict()
-
-            # Ensure streams is a list
             streams_val = new_row.get("streams")
             if isinstance(streams_val, list):
                 new_streams = list(streams_val)
             else:
                 new_streams = []
             new_row["streams"] = new_streams
-
             combined[key] = new_row
         else:
             existing = combined[key]
 
-            # ----- Merge streams -----
             all_streams: List[Dict[str, Any]] = existing.get("streams") or []
             other_streams = row.get("streams")
             if isinstance(other_streams, list):
                 all_streams.extend(other_streams)
 
-            # Dedup by embed_url
-            seen_urls = set()
-            dedup_streams: List[Dict[str, Any]] = []
-            for s in all_streams:
-                if not isinstance(s, dict):
-                    continue
-                url = s.get("embed_url")
-                if not url or url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                dedup_streams.append(s)
-            existing["streams"] = dedup_streams
+            existing["streams"] = _dedup_streams_keep_order(all_streams)
 
-            # embed_url: from first deduped stream, or fallback
-            if dedup_streams:
-                existing["embed_url"] = dedup_streams[0].get("embed_url")
+            if existing["streams"]:
+                existing["embed_url"] = existing["streams"][0].get("embed_url")
             else:
                 if not existing.get("embed_url") and row.get("embed_url"):
                     existing["embed_url"] = row.get("embed_url")
 
-            # is_live: OR
             try:
                 existing["is_live"] = bool(existing.get("is_live")) or bool(row.get("is_live"))
             except Exception:
                 pass
 
-            # time: earliest non-null
             t_existing = existing.get("time")
             t_new = row.get("time")
             if pd.notna(t_new):
@@ -499,12 +554,10 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
                     if t_new < t_existing:
                         existing["time"] = t_new
 
-            # fill missing tournament / urls
             for col in ["tournament", "tournament_url", "watch_url"]:
                 if not existing.get(col) and row.get(col):
                     existing[col] = row.get(col)
 
-            # combine source strings
             src_existing = existing.get("source")
             src_new = row.get("source")
             if src_new:
@@ -514,24 +567,21 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
                 else:
                     existing["source"] = src_new
 
-    combined_df = pd.DataFrame(list(combined.values()))
-    return combined_df
+    return pd.DataFrame(list(combined.values()))
 
 
-# ========= 6) MAIN FUNCTION TO COMBINE DATA AND WRITE CSV =========
+# ========= 7) MAIN FUNCTION =========
 def main() -> None:
-    # 1) sport71 games
     df_sport71 = scrape_today_games_sport71()
 
-    # if we got any sport71 games, fetch their streams
     if not df_sport71.empty:
         df_sport71["streams"] = df_sport71["watch_url"].apply(get_all_streams_from_watch_page)
+        df_sport71["streams"] = df_sport71["streams"].apply(lambda x: x if isinstance(x, list) else [])
         df_sport71["embed_url"] = df_sport71["streams"].apply(
             lambda streams: streams[0]["embed_url"] if streams else None
         )
 
-        # For *live* sport71 games, require an embed_url.
-        # Future (not-yet-live) games are allowed to have missing streams.
+        # For *live* sport71 games, require an embed_url. Future games can be missing streams.
         try:
             df_sport71 = df_sport71[
                 (~df_sport71["is_live"]) | df_sport71["embed_url"].notna()
@@ -539,10 +589,8 @@ def main() -> None:
         except Exception as e:
             print("[main][WARN] Could not filter sport71 rows by embed_url:", e)
 
-    # 2) sharkstreams games (already come with streams + embed_url)
     df_shark = scrape_today_games_shark()
 
-    # 3) combine dataframes (raw concat)
     if not df_sport71.empty and not df_shark.empty:
         df = pd.concat([df_sport71, df_shark], ignore_index=True)
     elif not df_sport71.empty:
@@ -551,16 +599,20 @@ def main() -> None:
         df = df_shark
 
     if df.empty:
+        print("[main] No games found; nothing to write.")
         return
 
-    # 4) COMBINE SIMILAR GAMES by team-order–independent key
+    # Combine similar games from sources
     df = combine_similar_games(df)
 
-    output_file = "today_games_with_all_streams.csv"
+    # ✅ IMPORTANT: merge existing CSV streams so your manual additions survive
+    df = merge_existing_csv_streams(df, OUTPUT_FILE)
+
     try:
-        df.to_csv(output_file, index=False)
+        df.to_csv(OUTPUT_FILE, index=False)
+        print(f"[main] wrote {OUTPUT_FILE} ({len(df)} rows)")
     except Exception as e:
-        print(f"[main][ERROR] Failed to write CSV to {output_file}:", e)
+        print(f"[main][ERROR] Failed to write CSV to {OUTPUT_FILE}:", e)
 
 
 if __name__ == "__main__":

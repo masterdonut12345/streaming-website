@@ -16,25 +16,25 @@ import urllib.request
 import urllib.error
 
 
-API_URL = "https://thestreamden.com/api/games/upsert"
+API_URL = "https://thestreamden.onrender.com/api/games/upsert"
 
 # ✅ Edit ONLY this dictionary
 GAME = {
     "source": "manual",
     "date_header": "Friday, December 19, 2025",
-    "sport": "Basketball",
+    "sport": "Boxing",
     "time_unix": 1766113200000,
     "time": "2025-12-18 22:00:00-05:00",
-    "tournament": "NBA",
-    "tournament_url": "https://example.com/nba",
-    "matchup": "Portland Trail Blazers - Sacramento Kings",
-    "watch_url": "https://example.com/watch/game",
+    "tournament": "PPV",
+    "tournament_url": "https://thestreamden.com",
+    "matchup": "Jake Paul vs Anthony Joshua",
+    "watch_url": "https://app.buffstream.io/boxing-streams/jake-paul-live-stream",
     "is_live": True,
     "streams": [
         {
             "label": "Main Stream",
-            "embed_url": "https://example.com/embed/main",
-            "watch_url": "https://example.com/watch/game",
+            "embed_url": "https://embedsports.me/boxing/jake-paul-vs-anthony-joshua-stream-1",
+            "watch_url": "https://app.buffstream.io/boxing-streams/jake-paul-live-stream",
         }
     ],
     # "embed_url": "https://example.com/embed/main",  # optional (server will fill from streams[0])
@@ -65,7 +65,7 @@ def post_json(url: str, payload: dict, api_key: str | None):
 
 
 def main():
-    api_key = os.environ.get("ADMIN_API_KEY", "").strip() or None
+    api_key = "023489h0weihg092ghsdojklgh2pq904eighwaoedjghvbnwoEPUG"
 
     payload = {"game": GAME}
 
