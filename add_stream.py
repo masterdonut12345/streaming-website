@@ -29,7 +29,7 @@ GAME = {
     "tournament_url": "https://thestreamden.com",
     "matchup": "Jake Paul vs Anthony Joshua",
     "watch_url": "https://app.buffstream.io/boxing-streams/jake-paul-live-stream",
-    "is_live": True,
+    "is_live": False,
     "streams": [
         {
             "label": "Main Stream",
