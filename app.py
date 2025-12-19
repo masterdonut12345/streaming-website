@@ -486,6 +486,50 @@ def api_add_streams():
         "streams_count": len(merged)
     })
 
+@app.route("/api/games/remove", methods=["POST"])
+def api_games_remove():
+    """
+    Remove a game row from the CSV by stable game_id.
+
+    Request JSON:
+      { "game_id": 123456789 }
+
+    Auth:
+      X-API-Key: <ADMIN_API_KEY>
+    """
+    if not require_admin():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+
+    if "game_id" not in payload:
+        return jsonify({"ok": False, "error": "missing game_id"}), 400
+
+    try:
+        game_id = int(payload["game_id"])
+    except Exception:
+        return jsonify({"ok": False, "error": "game_id must be an int"}), 400
+
+    df, fh = read_csv_locked()
+    # Ensure columns exist (older files / weird writes)
+    for c in CSV_COLS:
+        if c not in df.columns:
+            df[c] = ""
+
+    idx = find_row_index_by_game_id(df, game_id)
+    if idx is None:
+        # release lock
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        fh.close()
+        return jsonify({"ok": False, "error": "game not found", "game_id": game_id}), 404
+
+    # Drop the row and reset index
+    df = df.drop(index=idx).reset_index(drop=True)
+
+    write_csv_locked(df[CSV_COLS], fh)
+
+    return jsonify({"ok": True, "removed": True, "game_id": game_id, "rows_now": int(len(df))})
+
 
 @app.route("/api/games/upsert", methods=["POST"])
 def api_games_upsert():

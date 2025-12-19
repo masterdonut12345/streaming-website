@@ -32,10 +32,15 @@ GAME = {
     "is_live": False,
     "streams": [
         {
-            "label": "Main Stream",
+            "label" : "Main stream",
+            "embed_url" : "https://sharkstreams.net/player.php?channel=803",
+            "watch_url" : "https://crackstreams.ms/stream/-jake-paul-vs-anthony-joshua",
+        },
+        {
+            "label": "Backup stream",
             "embed_url": "https://embedsports.me/boxing/jake-paul-vs-anthony-joshua-stream-1",
             "watch_url": "https://app.buffstream.io/boxing-streams/jake-paul-live-stream",
-        }
+        },
     ],
     # "embed_url": "https://example.com/embed/main",  # optional (server will fill from streams[0])
 }
