@@ -135,6 +135,24 @@
             font-weight: 500;
         }
 
+        /* Support note */
+        .support-note {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(122, 162, 255, 0.18);
+            background: rgba(5, 5, 12, 0.55);
+            color: var(--muted);
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .support-note a {
+            font-weight: 600;
+        }
+
         .meta-chips {
             margin-top: 8px;
             display: flex;
@@ -394,24 +412,20 @@
             z-index: 9999;
         }
 
-        /* hide small “Live Stream” title in full-page */
         body.full-page-player .player-card h3 {
             display: none;
         }
 
-        /* main player area takes full height */
         body.full-page-player .player-layout {
             flex: 1 1 auto;
             height: 100%;
         }
 
-        /* single view: big iframe fills entire area */
         body.full-page-player .player-layout.single .player-slot[data-slot="0"],
         body.full-page-player .player-layout.single .player-slot[data-slot="0"] iframe {
             height: 100%;
         }
 
-        /* multi view: true 2x2 fullscreen grid */
         body.full-page-player .player-layout.multi {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -430,7 +444,7 @@
             display: none;
         }
 
-        /* float stream picker at the top-center in full-page mode */
+        /* (kept) positioning rule, but overridden by display:none below */
         body.full-page-player #stream-picker {
             position: fixed;
             top: 12px;
@@ -443,7 +457,11 @@
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.75);
         }
 
-        /* float multi/full-page controls at bottom-center */
+        /* ✅ NEW: hide stream picker in full-page so it never blocks the game */
+        body.full-page-player #stream-picker {
+            display: none !important;
+        }
+
         body.full-page-player .multi-view-title {
             position: fixed;
             bottom: 12px;
@@ -509,6 +527,12 @@
                                 &mdash; <strong>Time (unix):</strong> {{ game.time_unix }}
                             {% endif %}
                         </div>
+
+                        <div class="support-note">
+                            Having issues with streams? Please contact
+                            <a href="https://x.com/thestreamden" target="_blank" rel="noopener">@TheStreamDen</a>
+                            on Twitter.
+                        </div>
                     </div>
 
                     <div class="meta-chips">
@@ -534,9 +558,7 @@
             <div class="player-card">
                 <h3>Live Stream</h3>
 
-                <!-- PLAYER LAYOUT: single or 2x2 grid -->
                 <div class="player-layout single" id="player-layout">
-                    <!-- Slot 0: main game -->
                     <div class="player-slot" data-slot="0">
                         <iframe
                             id="game-iframe"
@@ -548,7 +570,6 @@
                     </div>
 
                     {% if other_games and other_games|length > 0 %}
-                        {# Pre-build options for other games #}
                         {% set options = [] %}
                         {% for g in other_games %}
                             {% if g.streams and g.streams|length > 0 %}
@@ -582,7 +603,6 @@
                     {% endif %}
                 </div>
 
-                <!-- Buttons to switch THIS game's streams -->
                 {% if game.streams|length > 1 %}
                     <div class="stream-picker" id="stream-picker">
                         {% for s in game.streams %}
@@ -597,7 +617,6 @@
                     </div>
                 {% endif %}
 
-                <!-- View controls: multi-view (if available) + full-page -->
                 <div class="multi-view-title">
                     <span>
                         {% if other_games and other_games|length > 0 %}
@@ -618,7 +637,6 @@
                     </div>
                 </div>
 
-                <!-- Ad under player -->
                 <div class="ad-slot">
                     <script
                       async="async"
@@ -636,7 +654,6 @@
         {% endif %}
     </div>
 
-    <!-- Stream switching + multiview + full-page JS -->
     <script>
         (function() {
             const mainIframe       = document.getElementById('game-iframe');
@@ -645,7 +662,6 @@
             const multiToggle      = document.getElementById('multi-toggle');
             const fullscreenToggle = document.getElementById('fullscreen-toggle');
 
-            // 1) Main stream switching for THIS game
             if (picker && mainIframe) {
                 picker.addEventListener('click', function (evt) {
                     const btn = evt.target.closest('.stream-button');
@@ -662,7 +678,6 @@
                 });
             }
 
-            // 2) Multi-view: same area, 2x2 grid
             if (playerLayout && multiToggle) {
                 let multiOn = false;
 
@@ -679,7 +694,6 @@
                     }
                 });
 
-                // Wire up each extra slot's select to its iframe
                 const extraSlots = playerLayout.querySelectorAll('.extra-slot');
                 extraSlots.forEach(slot => {
                     const select = slot.querySelector('.multi-slot-select');
@@ -704,7 +718,6 @@
                 });
             }
 
-            // 3) Full-page mode (works for single OR multi)
             if (fullscreenToggle) {
                 let fullOn = false;
 
@@ -717,35 +730,24 @@
         })();
     </script>
 
-    <!-- Heartbeat: track active viewers on this page -->
     <script>
         (function () {
             function sendHeartbeat() {
                 fetch("{{ url_for('heartbeat') }}", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        path: window.location.pathname
-                    })
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path: window.location.pathname })
                 }).catch(function (err) {
-                    // it's just metrics; ignore any errors
-                    if (window.console && console.debug) {
-                        console.debug("heartbeat error", err);
-                    }
+                    if (window.console && console.debug) console.debug("heartbeat error", err);
                 });
             }
 
-            // Send one immediately and then every 30 seconds
             sendHeartbeat();
             setInterval(sendHeartbeat, 30000);
         })();
     </script>
 
-    <!-- Cloudflare Web Analytics -->
     <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "643968b4db2b4d4c80a6f49718fcfcaa"}'></script>
-    <!-- End Cloudflare Web Analytics -->
 
 {% if open_ad %}
 <script>
