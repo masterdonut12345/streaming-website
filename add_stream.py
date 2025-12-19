@@ -27,7 +27,7 @@ GAME = {
     "time": "2025-12-18 22:00:00-05:00",
     "tournament": "PPV",
     "tournament_url": "https://thestreamden.com",
-    "matchup": "Jake Paul vs Anthony Joshua",
+    "matchup": "Jake Paul vs Anthony Joshua (alternative stream)",
     "watch_url": "https://app.buffstream.io/boxing-streams/jake-paul-live-stream",
     "is_live": False,
     "streams": [
