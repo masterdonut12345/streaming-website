@@ -7,7 +7,7 @@ import re
 from urllib.parse import urljoin
 from typing import Optional, List, Dict, Any
 
-BASE_URL_SPORT71 = "https://sport71.pro"
+BASE_URL_SPORT71 = "https://sport7.pro"
 BASE_URL_SHARK = "https://sharkstreams.net/"
 
 HEADERS = {
