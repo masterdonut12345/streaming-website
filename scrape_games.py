@@ -4,18 +4,24 @@ scrape_games.py
 
 Scrapes games from:
   - sport7.pro (sport71) upcoming events (today + tomorrow) + all stream embeds from watch pages
-  - sharkstreams.net (today)
+  - sharkstreams.net (today + tomorrow)
 
-FIXES:
+Fixes in this version:
   1) Exclusive lock around read+merge+write
-  2) Merge old streams into matching new rows with stronger fallbacks
-  3) Preserve stream metadata (e.g., slug) instead of dropping fields
-  4) Carry-forward old rows that disappear from scrape (so streams don’t vanish)
+  2) SharkStreams parser uses openEmbed('...') directly (matches site HTML)
+  3) Stream lifecycle:
+      - manual streams are preserved
+      - scraped streams are replaced by the new scrape (old scraped streams are removed if they vanish)
+  4) Stream explosion prevention: cap per game
+  5) Optional: keep missing old rows (disabled by default; see CARRY_FORWARD_MISSING_OLD_ROWS)
+
+Notes:
+  - This script writes today_games_with_all_streams.csv under a file lock.
 """
 
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pandas as pd
 import pytz
 import re
@@ -25,6 +31,7 @@ import ast
 import os
 import json
 import fcntl
+import time
 
 BASE_URL_SPORT71 = "https://sport7.pro"
 BASE_URL_SHARK = "https://sharkstreams.net/"
@@ -40,6 +47,21 @@ CSV_COLS = [
     "tournament", "tournament_url", "matchup", "watch_url",
     "is_live", "streams", "embed_url"
 ]
+
+# ----------------- knobs -----------------
+MAX_STREAMS_PER_GAME = 8
+
+# Sport71 watch-page fetching can be slow. If you want a hard cap:
+SPORT71_MAX_WATCH_PAGES = None  # e.g. 80, or None for unlimited
+SPORT71_WATCH_SLEEP_S = 0.15    # small politeness delay
+
+# If True, will keep old rows that disappear from the scrape (useful for flaky scraping)
+# But if you want old stuff to actually disappear, keep this False.
+CARRY_FORWARD_MISSING_OLD_ROWS = False
+
+# If an old row is carried forward, keep it only if within this window (hours in the past)
+CARRY_FORWARD_KEEP_RECENT_HOURS = 6
+
 
 # ========= helpers =========
 def _norm_url(u: Any) -> str:
@@ -128,7 +150,7 @@ def _parse_streams_cell(val: Any) -> List[Dict[str, Any]]:
 
 def _dedup_streams_keep_order(streams: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Dedup by embed_url, preserve ALL metadata keys for each stream.
+    Dedup by embed_url, preserve metadata.
     """
     seen = set()
     out: List[Dict[str, Any]] = []
@@ -139,20 +161,26 @@ def _dedup_streams_keep_order(streams: List[Dict[str, Any]]) -> List[Dict[str, A
         if not url or url in seen:
             continue
         seen.add(url)
-
-        # keep all keys, but normalize basics
         fixed = dict(st)
         fixed["embed_url"] = url
         fixed["label"] = fixed.get("label") or "Stream"
+        # default origin if missing (so old CSVs still work)
+        fixed["origin"] = fixed.get("origin") or "scraped"
         if "watch_url" in fixed and isinstance(fixed["watch_url"], str):
             fixed["watch_url"] = fixed["watch_url"].strip()
         out.append(fixed)
     return out
 
+def _cap_streams(streams: List[Dict[str, Any]], cap: int = MAX_STREAMS_PER_GAME) -> List[Dict[str, Any]]:
+    streams = streams or []
+    if len(streams) <= cap:
+        return streams
+    return streams[:cap]
+
 def _streams_to_cell(streams_list: Any) -> str:
     """
     Convert list[dict] -> python-literal string suitable for ast.literal_eval in Flask.
-    IMPORTANT: preserve metadata keys (slug, etc.), only enforce embed_url exists.
+    Preserve metadata keys (slug, origin, etc.), enforce embed_url exists.
     """
     streams = streams_list if isinstance(streams_list, list) else _parse_streams_cell(streams_list)
     cleaned: List[Dict[str, Any]] = []
@@ -165,11 +193,19 @@ def _streams_to_cell(streams_list: Any) -> str:
         fixed = dict(s)
         fixed["embed_url"] = embed
         fixed["label"] = fixed.get("label") or "Stream"
+        fixed["origin"] = fixed.get("origin") or "scraped"
         if "watch_url" in fixed and isinstance(fixed["watch_url"], str):
             fixed["watch_url"] = fixed["watch_url"].strip()
         cleaned.append(fixed)
     cleaned = _dedup_streams_keep_order(cleaned)
+    cleaned = _cap_streams(cleaned)
     return repr(cleaned)
+
+def _is_today_or_tomorrow(dt_est: datetime) -> bool:
+    now = datetime.now(EST)
+    d = dt_est.date()
+    return d == now.date() or d == (now.date() + timedelta(days=1))
+
 
 # ========= 1) SPORT71: TODAY + TOMORROW'S GAMES =========
 def scrape_today_games_sport71() -> pd.DataFrame:
@@ -242,6 +278,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 watch_url = watch_link["href"] if (watch_link and watch_link.has_attr("href")) else None
 
                 now_est = datetime.now(EST)
+                # sport71 tends to be more “event based”; 3h window is fine
                 is_live = bool(event_dt and event_dt <= now_est <= event_dt + timedelta(hours=3))
 
                 rows.append({
@@ -261,16 +298,18 @@ def scrape_today_games_sport71() -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Filter out past non-live games
-    try:
-        now_est = datetime.now(EST)
-        df = df[df["time"].isna() | (df["time"] >= now_est) | (df["is_live"] == True)]
-    except Exception as e:
-        print("[sport71][WARN] Failed to filter past non-live games:", e)
+    # Keep today+tomorrow, even if "past" (your site usually wants the full slate)
+    # But you can uncomment this if you want to hide past non-live:
+    # now_est = datetime.now(EST)
+    # df = df[df["time"].isna() | (df["time"] >= now_est - timedelta(hours=6)) | (df["is_live"] == True)]
 
     return df
 
-# ========= 2) SHARKSTREAMS: TODAY'S GAMES =========
+
+# ========= 2) SHARKSTREAMS: TODAY + TOMORROW (ONE EMBED PER ROW) =========
+_OPENEMBED_RE = re.compile(r"openEmbed\(\s*'([^']+)'\s*\)", re.IGNORECASE)
+_WINDOWOPEN_RE = re.compile(r"window\.open\(\s*'([^']+)'\s*,", re.IGNORECASE)
+
 def scrape_today_games_shark() -> pd.DataFrame:
     try:
         req = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
@@ -287,7 +326,9 @@ def scrape_today_games_shark() -> pd.DataFrame:
 
     for row_div in soup.find_all("div", class_="row"):
         date_span = row_div.find("span", class_="ch-date")
-        if not date_span:
+        cat_span  = row_div.find("span", class_="ch-category")
+        name_span = row_div.find("span", class_="ch-name")
+        if not (date_span and cat_span and name_span):
             continue
 
         date_str = date_span.get_text(strip=True)
@@ -295,45 +336,55 @@ def scrape_today_games_shark() -> pd.DataFrame:
             naive_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
             event_dt = EST.localize(naive_dt)
         except Exception:
-            print(f"[shark][ERROR] Failed to parse date: {date_str}")
+            # if Shark changes formatting, skip row
+            print(f"[shark][WARN] Failed to parse date: {date_str}")
             continue
 
-        cat_span = row_div.find("span", class_="ch-category")
-        sport_name = cat_span.get_text(strip=True) if cat_span else "Unknown"
+        # ONLY keep today + tomorrow (you said Shark lists one embed per game)
+        if not _is_today_or_tomorrow(event_dt):
+            continue
 
-        name_span = row_div.find("span", class_="ch-name")
+        sport_name = cat_span.get_text(strip=True) if cat_span else "Unknown"
         matchup = name_span.get_text(strip=True) if name_span else "Unknown"
 
-        embed_link = None
+        embed_url = None
+        watch_rel = None
+
+        # Find embed via openEmbed('https://sharkstreams.net/player.php?channel=XYZ')
         for a in row_div.find_all("a", class_="hd-link"):
-            if "Embed" in a.get_text(strip=True):
-                onclick = a.get("onclick", "")
-                m = re.search(r"openEmbed\('([^']+)'", onclick)
-                if m:
-                    embed_link = m.group(1)
+            onclick = a.get("onclick", "") or ""
+            m = _OPENEMBED_RE.search(onclick)
+            if m:
+                embed_url = m.group(1).strip()
                 break
 
-        if not embed_link:
+        # Find watch via window.open('player.php?channel=XYZ', ...)
+        if not embed_url:
             for a in row_div.find_all("a", class_="hd-link"):
-                if "Watch" in a.get_text(strip=True):
-                    onclick = a.get("onclick", "")
-                    m = re.search(r"window\.open\(\s*'([^']+)'", onclick)
-                    if m:
-                        rel = m.group(1)
-                        embed_link = urljoin(BASE_URL_SHARK, rel)
+                onclick = a.get("onclick", "") or ""
+                m = _WINDOWOPEN_RE.search(onclick)
+                if m:
+                    watch_rel = m.group(1).strip()
                     break
 
-        if not embed_link:
-            print(f"[shark][ERROR] No embed link found for matchup: {matchup}")
+        if embed_url:
+            embed_url = urljoin(BASE_URL_SHARK, embed_url)
+        elif watch_rel:
+            embed_url = urljoin(BASE_URL_SHARK, watch_rel)
+        else:
+            print(f"[shark][WARN] No embed/watch link found for: {matchup}")
             continue
 
-        embed_link = urljoin(BASE_URL_SHARK, embed_link)
         time_unix = int(event_dt.timestamp() * 1000)
-
-        streams = [{"label": "SharkStreams", "embed_url": embed_link, "watch_url": embed_link}]
-
         now_est = datetime.now(EST)
         is_live = bool(event_dt <= now_est <= event_dt + timedelta(hours=3))
+
+        streams = [{
+            "label": "SharkStreams",
+            "embed_url": embed_url,
+            "watch_url": embed_url,
+            "origin": "scraped",
+        }]
 
         rows.append({
             "source": "sharkstreams",
@@ -344,29 +395,20 @@ def scrape_today_games_shark() -> pd.DataFrame:
             "tournament": None,
             "tournament_url": None,
             "matchup": matchup,
-            "watch_url": embed_link,
+            "watch_url": embed_url,
             "streams": streams,
-            "embed_url": embed_link,
+            "embed_url": embed_url,
             "is_live": is_live,
         })
 
     df = pd.DataFrame(rows)
-    if df.empty:
-        return df
-
-    try:
-        now_est = datetime.now(EST)
-        df = df[df["time"].isna() | (df["time"] >= now_est) | (df["is_live"] == True)]
-    except Exception as e:
-        print("[shark][WARN] Failed to filter past non-live games:", e)
-
     return df
+
 
 # ========= 3) GET STREAMS FROM SPORT71 WATCH PAGE =========
 def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, Any]]:
     if not watch_url:
         return []
-
     try:
         r = requests.get(watch_url, headers=HEADERS, timeout=15)
         if r.status_code != 200:
@@ -379,7 +421,12 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
         iframe = soup.find("iframe")
         if iframe and iframe.get("src"):
             embed_url = iframe.get("src")
-            streams.append({"label": "Main Stream", "embed_url": embed_url, "watch_url": watch_url})
+            streams.append({
+                "label": "Main Stream",
+                "embed_url": embed_url,
+                "watch_url": watch_url,
+                "origin": "scraped",
+            })
 
         stream_links = soup.select("div.stream-picker a.stream-button")
         for link in stream_links or []:
@@ -396,13 +443,17 @@ def get_all_streams_from_watch_page(watch_url: Optional[str]) -> List[Dict[str, 
                     streams.append({
                         "label": f"Stream: {stream_name}",
                         "embed_url": embed_url,
-                        "watch_url": full_stream_url
+                        "watch_url": full_stream_url,
+                        "origin": "scraped",
                     })
 
-        return _dedup_streams_keep_order(streams)
+        streams = _dedup_streams_keep_order(streams)
+        streams = _cap_streams(streams)
+        return streams
     except Exception as e:
         print("[sport71][ERROR] Error fetching streams:", e, watch_url)
         return []
+
 
 # ========= 4) MATCHUP NORMALIZATION =========
 TEAM_SEP_REGEX = re.compile(r"\bvs\b|\bvs.\b|\bv\b|\bv.\b| - | – | — | @ ", re.IGNORECASE)
@@ -436,130 +487,95 @@ def _row_game_key(row: Dict[str, Any]) -> Tuple[Any, str, str]:
     return (date_key, sport, matchup_key)
 
 def _row_game_key_loose(row: Dict[str, Any]) -> Tuple[str, str]:
-    """Looser key ignores date; used as fallback."""
     sport = (row.get("sport") or "").strip().lower()
     matchup_key = make_matchup_key(row.get("matchup") or "")
     return (sport, matchup_key)
 
-def _time_unix_int(v: Any) -> Optional[int]:
-    try:
-        if v is None or (isinstance(v, float) and pd.isna(v)):
-            return None
-        if isinstance(v, str):
-            v = v.strip()
-            if not v:
-                return None
-        return int(v)
-    except Exception:
-        return None
 
-# ========= 5) MERGE OLD STREAMS (PRESERVE + STRONGER MATCHING) =========
+# ========= 5) MERGE OLD STREAMS (DELETE OLD SCRAPED THAT VANISH) =========
+def _is_manual_stream(st: Dict[str, Any]) -> bool:
+    """
+    Manual stream definition:
+      - explicit origin == 'manual', OR
+      - manual == True (for backwards compatibility if you add it)
+    """
+    if not isinstance(st, dict):
+        return False
+    if st.get("origin") == "manual":
+        return True
+    if st.get("manual") is True:
+        return True
+    return False
+
 def merge_existing_streams(df_new: pd.DataFrame, df_old: pd.DataFrame) -> pd.DataFrame:
-    if df_new.empty or df_old.empty:
+    """
+    Merge policy:
+      - New scrape provides the authoritative scraped streams.
+      - Old scraped streams that are not present anymore are dropped.
+      - Old manual streams are always kept (prepended).
+    """
+    if df_new.empty:
+        return df_new
+    if df_old is None or df_old.empty:
+        # still normalize new rows
+        df_new = df_new.copy()
+        if "streams" in df_new.columns:
+            df_new["streams"] = df_new["streams"].apply(lambda x: _cap_streams(_dedup_streams_keep_order(x if isinstance(x, list) else _parse_streams_cell(x))))
         return df_new
 
-    # Index old rows in multiple ways
-    old_streams_by_key: Dict[Tuple[Any, str, str], List[Dict[str, Any]]] = {}
-    old_embed_by_key: Dict[Tuple[Any, str, str], str] = {}
-
-    old_streams_by_watch: Dict[str, List[Dict[str, Any]]] = {}
-    old_embed_by_watch: Dict[str, str] = {}
-
-    old_streams_by_loose: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
-    old_embed_by_loose: Dict[Tuple[str, str], str] = {}
-
-    old_by_timeunix: Dict[int, List[Dict[str, Any]]] = {}
+    # index old by strict and loose keys
+    old_by_key: Dict[Tuple[Any, str, str], List[Dict[str, Any]]] = {}
+    old_by_loose: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
 
     for _, r in df_old.iterrows():
         row = r.to_dict()
         row["time"] = _safe_to_dt_est(row.get("time"))
+        old_streams = _dedup_streams_keep_order(_parse_streams_cell(row.get("streams")))
+        if not old_streams:
+            continue
 
-        streams = _dedup_streams_keep_order(_parse_streams_cell(row.get("streams")))
-        key = _row_game_key(row)
-        loose = _row_game_key_loose(row)
+        k = _row_game_key(row)
+        l = _row_game_key_loose(row)
+        old_by_key.setdefault(k, []).extend(old_streams)
+        old_by_loose.setdefault(l, []).extend(old_streams)
 
-        if streams:
-            old_streams_by_key.setdefault(key, []).extend(streams)
-            old_streams_by_key[key] = _dedup_streams_keep_order(old_streams_by_key[key])
-
-            old_streams_by_loose.setdefault(loose, []).extend(streams)
-            old_streams_by_loose[loose] = _dedup_streams_keep_order(old_streams_by_loose[loose])
-
-        emb = row.get("embed_url")
-        if isinstance(emb, str) and emb.strip():
-            old_embed_by_key.setdefault(key, emb.strip())
-            old_embed_by_loose.setdefault(loose, emb.strip())
-
-        w = _norm_url(row.get("watch_url"))
-        if w:
-            if streams:
-                old_streams_by_watch.setdefault(w, []).extend(streams)
-                old_streams_by_watch[w] = _dedup_streams_keep_order(old_streams_by_watch[w])
-            if isinstance(emb, str) and emb.strip():
-                old_embed_by_watch.setdefault(w, emb.strip())
-
-        tu = _time_unix_int(row.get("time_unix"))
-        if tu and streams:
-            old_by_timeunix.setdefault(tu, []).extend(streams)
-            old_by_timeunix[tu] = _dedup_streams_keep_order(old_by_timeunix[tu])
+        old_by_key[k] = _dedup_streams_keep_order(old_by_key[k])
+        old_by_loose[l] = _dedup_streams_keep_order(old_by_loose[l])
 
     merged_rows: List[Dict[str, Any]] = []
 
     for _, r in df_new.iterrows():
         new_row = r.to_dict()
         new_row["time"] = _safe_to_dt_est(new_row.get("time"))
-        new_streams = _dedup_streams_keep_order(_parse_streams_cell(new_row.get("streams")))
 
-        key = _row_game_key(new_row)
-        loose = _row_game_key_loose(new_row)
-        w = _norm_url(new_row.get("watch_url"))
-        tu_new = _time_unix_int(new_row.get("time_unix"))
+        new_streams = _dedup_streams_keep_order(new_row.get("streams") if isinstance(new_row.get("streams"), list) else _parse_streams_cell(new_row.get("streams")))
+        new_streams = _cap_streams(new_streams)
 
-        old_streams = None
-        old_embed = None
+        k = _row_game_key(new_row)
+        l = _row_game_key_loose(new_row)
 
-        # strict key
-        if key in old_streams_by_key:
-            old_streams = old_streams_by_key.get(key)
-            old_embed = old_embed_by_key.get(key)
+        old_streams = old_by_key.get(k) or old_by_loose.get(l) or []
+        old_streams = _dedup_streams_keep_order(old_streams)
 
-        # watch_url fallback
-        if (not old_streams) and w and (w in old_streams_by_watch):
-            old_streams = old_streams_by_watch.get(w)
-            old_embed = old_embed_by_watch.get(w)
+        # split old into manual vs scraped
+        old_manual = [st for st in old_streams if _is_manual_stream(st)]
+        # old scraped only kept if it still exists in new scrape (prevents growth + allows deletion)
+        new_urls = set((st.get("embed_url") or "").strip() for st in new_streams)
+        old_scraped_kept = [st for st in old_streams if (not _is_manual_stream(st)) and ((st.get("embed_url") or "").strip() in new_urls)]
 
-        # loose matchup fallback
-        if (not old_streams) and (loose in old_streams_by_loose):
-            old_streams = old_streams_by_loose.get(loose)
-            old_embed = old_embed_by_loose.get(loose)
-
-        # time_unix tolerance fallback (±15 minutes)
-        if (not old_streams) and tu_new:
-            window_ms = 15 * 60 * 1000
-            candidates: List[Dict[str, Any]] = []
-            for tu_old, ss in old_by_timeunix.items():
-                if abs(tu_old - tu_new) <= window_ms:
-                    candidates.extend(ss)
-            if candidates:
-                old_streams = _dedup_streams_keep_order(candidates)
-
-        # Combine: old first to keep manual at top
-        if old_streams:
-            combined = _dedup_streams_keep_order(list(old_streams) + list(new_streams))
-        else:
-            combined = new_streams
+        combined = _dedup_streams_keep_order(old_manual + old_scraped_kept + new_streams)
+        combined = _cap_streams(combined)
 
         new_row["streams"] = combined
-
-        # embed_url: use first combined, else preserve
         if combined:
-            new_row["embed_url"] = (combined[0].get("embed_url") or "").strip() or new_row.get("embed_url")
-        elif isinstance(old_embed, str) and old_embed.strip():
-            new_row["embed_url"] = old_embed.strip()
+            new_row["embed_url"] = (combined[0].get("embed_url") or "").strip()
+        else:
+            new_row["embed_url"] = (new_row.get("embed_url") or "").strip()
 
         merged_rows.append(new_row)
 
     return pd.DataFrame(merged_rows)
+
 
 # ========= 6) COMBINE SIMILAR GAMES =========
 def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
@@ -583,7 +599,7 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
 
         row_dict = row.to_dict()
         row_dict["streams"] = row_dict.get("streams") if isinstance(row_dict.get("streams"), list) else _parse_streams_cell(row_dict.get("streams"))
-        row_dict["streams"] = _dedup_streams_keep_order(row_dict["streams"])
+        row_dict["streams"] = _cap_streams(_dedup_streams_keep_order(row_dict["streams"]))
 
         if key not in combined:
             if row_dict["streams"] and not row_dict.get("embed_url"):
@@ -592,10 +608,8 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
         else:
             existing = combined[key]
             all_streams: List[Dict[str, Any]] = existing.get("streams") or []
-            other_streams = row_dict.get("streams") or []
-            all_streams.extend(other_streams)
-
-            existing["streams"] = _dedup_streams_keep_order(all_streams)
+            all_streams.extend(row_dict.get("streams") or [])
+            existing["streams"] = _cap_streams(_dedup_streams_keep_order(all_streams))
             if existing["streams"]:
                 existing["embed_url"] = existing["streams"][0].get("embed_url")
 
@@ -625,31 +639,23 @@ def combine_similar_games(df: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(list(combined.values()))
 
-# ========= 7) CARRY-FORWARD OLD ROWS THAT DISAPPEAR =========
+
+# ========= 7) OPTIONAL: CARRY-FORWARD OLD ROWS THAT DISAPPEAR =========
 def carry_forward_missing_old_rows(df_new: pd.DataFrame, df_old: pd.DataFrame) -> pd.DataFrame:
-    """
-    If a game row existed in old CSV but isn't present in new scrape,
-    carry it forward if it's still relevant (today/tomorrow OR live/recent).
-    This prevents streams from "vanishing" due to scrape misses.
-    """
-    if df_old.empty:
+    if not CARRY_FORWARD_MISSING_OLD_ROWS:
+        return df_new
+    if df_old is None or df_old.empty:
         return df_new
 
     now_est = datetime.now(EST)
-    keep_recent_hours = 6  # carry forward games up to 6h in the past (covers live/recent)
 
-    # Build sets of identifiers present in new
     new_keys = set()
-    new_watch = set()
     new_loose = set()
 
     for _, r in df_new.iterrows():
         row = r.to_dict()
         row["time"] = _safe_to_dt_est(row.get("time"))
         new_keys.add(_row_game_key(row))
-        w = _norm_url(row.get("watch_url"))
-        if w:
-            new_watch.add(w)
         new_loose.add(_row_game_key_loose(row))
 
     carry_rows: List[Dict[str, Any]] = []
@@ -657,53 +663,37 @@ def carry_forward_missing_old_rows(df_new: pd.DataFrame, df_old: pd.DataFrame) -
     for _, r in df_old.iterrows():
         row = r.to_dict()
         row["time"] = _safe_to_dt_est(row.get("time"))
-
         key = _row_game_key(row)
-        w = _norm_url(row.get("watch_url"))
         loose = _row_game_key_loose(row)
 
-        # If already represented in new, skip
-        if key in new_keys:
-            continue
-        if w and w in new_watch:
-            continue
-        if loose in new_loose:
-            # loose match already exists; don't double-add
+        if key in new_keys or loose in new_loose:
             continue
 
-        # Decide if we keep it
-        is_live = bool(row.get("is_live"))
         t = row.get("time")
-        date_header = (row.get("date_header") or "").strip()
-
-        keep = False
-        if is_live:
-            keep = True
-        elif isinstance(t, datetime):
-            if t >= (now_est - timedelta(hours=keep_recent_hours)) and t <= (now_est + timedelta(days=2)):
-                keep = True
+        if isinstance(t, datetime):
+            if t < (now_est - timedelta(hours=CARRY_FORWARD_KEEP_RECENT_HOURS)):
+                continue
+            if t > (now_est + timedelta(days=2)):
+                continue
+        # else: if no time, skip carry-forward (safer)
         else:
-            # if no time, but date_header looks like today/tomorrow-ish, keep
-            # (we keep it conservative by allowing non-empty date_header)
-            if date_header:
-                keep = True
+            continue
 
-        if keep:
-            # parse & normalize streams
-            streams = _dedup_streams_keep_order(_parse_streams_cell(row.get("streams")))
-            row["streams"] = streams
-            if not row.get("embed_url") and streams:
-                row["embed_url"] = streams[0].get("embed_url")
-            carry_rows.append(row)
+        streams = _cap_streams(_dedup_streams_keep_order(_parse_streams_cell(row.get("streams"))))
+        if not streams:
+            continue
+
+        row["streams"] = streams
+        row["embed_url"] = row.get("embed_url") or streams[0].get("embed_url")
+        carry_rows.append(row)
 
     if not carry_rows:
         return df_new
 
-    df_carry = pd.DataFrame(carry_rows)
-    out = pd.concat([df_new, df_carry], ignore_index=True)
-    # re-combine to avoid duplicates
+    out = pd.concat([df_new, pd.DataFrame(carry_rows)], ignore_index=True)
     out = combine_similar_games(out)
     return out
+
 
 # ========= 8) LOCKED READ/WRITE =========
 def _ensure_csv_has_header(path: str) -> None:
@@ -743,9 +733,7 @@ def _write_csv_locked(df: pd.DataFrame, fh) -> None:
             return (streams[0].get("embed_url") or "").strip() or ""
         return ""
 
-    if "embed_url" in df.columns:
-        df["embed_url"] = df.apply(fix_embed, axis=1)
-
+    df["embed_url"] = df.apply(fix_embed, axis=1)
     out = df[CSV_COLS].copy()
 
     fh.seek(0)
@@ -754,21 +742,29 @@ def _write_csv_locked(df: pd.DataFrame, fh) -> None:
     fh.flush()
     os.fsync(fh.fileno())
 
+
 # ========= 9) MAIN =========
 def main() -> None:
     df_sport71 = scrape_today_games_sport71()
 
     if not df_sport71.empty:
-        df_sport71["streams"] = df_sport71["watch_url"].apply(get_all_streams_from_watch_page)
-        df_sport71["streams"] = df_sport71["streams"].apply(lambda x: x if isinstance(x, list) else [])
-        df_sport71["streams"] = df_sport71["streams"].apply(_dedup_streams_keep_order)
-        df_sport71["embed_url"] = df_sport71["streams"].apply(lambda streams: streams[0]["embed_url"] if streams else None)
+        # Fetch watch pages (slow part)
+        watch_urls = df_sport71["watch_url"].tolist()
+        if SPORT71_MAX_WATCH_PAGES is not None:
+            watch_urls = watch_urls[:SPORT71_MAX_WATCH_PAGES]
 
-        # For live sport71 games require embed_url; future games can be missing streams
-        try:
-            df_sport71 = df_sport71[(~df_sport71["is_live"]) | df_sport71["embed_url"].notna()]
-        except Exception:
-            pass
+        streams_map: Dict[str, List[Dict[str, Any]]] = {}
+        for i, w in enumerate(watch_urls):
+            if SPORT71_WATCH_SLEEP_S:
+                time.sleep(SPORT71_WATCH_SLEEP_S)
+            streams_map[w] = get_all_streams_from_watch_page(w)
+
+        def streams_for_watch(w):
+            return streams_map.get(w, []) if isinstance(w, str) else []
+
+        df_sport71["streams"] = df_sport71["watch_url"].apply(streams_for_watch)
+        df_sport71["streams"] = df_sport71["streams"].apply(lambda x: _cap_streams(_dedup_streams_keep_order(x if isinstance(x, list) else [])))
+        df_sport71["embed_url"] = df_sport71["streams"].apply(lambda ss: ss[0]["embed_url"] if ss else None)
 
     df_shark = scrape_today_games_shark()
 
@@ -797,15 +793,13 @@ def main() -> None:
 
         df_old = _read_old_csv_locked(fh)
 
-        # Merge old streams into new rows
+        # Merge old/manual streams into new rows, but delete old scraped that vanish
         df = merge_existing_streams(df, df_old)
 
-        # Carry forward missing old rows so streams don't vanish when scrape misses a row
+        # Optional carry-forward of missing old rows (disabled by default)
         df = carry_forward_missing_old_rows(df, df_old)
 
-        # Write back while still locked
         _write_csv_locked(df, fh)
-
         fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
     print(f"[main] wrote {OUTPUT_FILE} ({len(df)} rows)")
