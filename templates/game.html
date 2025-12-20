@@ -47,7 +47,8 @@
             margin: 0;
             min-height: 100vh;
             font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            background: radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
+            background:
+                radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
             color: var(--text);
         }
 
@@ -72,7 +73,6 @@
             font-size: 0.9rem;
             color: var(--muted);
         }
-
         .back-link a { color: var(--muted); }
         .back-link a:hover { color: var(--accent); }
 
@@ -80,7 +80,8 @@
             border-radius: 20px;
             padding: 16px 18px;
             margin-bottom: 18px;
-            background: linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
+            background:
+                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
             border: 1px solid rgba(122, 162, 255, 0.25);
             box-shadow: var(--shadow-soft);
         }
@@ -91,6 +92,7 @@
             gap: 20px;
         }
 
+        /* fixed 320x50 ad box on the left */
         .ad-slot-left {
             flex: 0 0 auto;
             width: 320px;
@@ -100,7 +102,6 @@
             justify-content: flex-start;
             overflow: hidden;
         }
-
         .ad-slot-left iframe {
             width: 100% !important;
             height: 100% !important;
@@ -159,6 +160,7 @@
             background: rgba(122, 162, 255, 0.14);
         }
 
+        /* Support note */
         .support-note {
             margin-top: 8px;
             padding: 8px 10px;
@@ -189,7 +191,6 @@
             background: rgba(10, 10, 18, 0.95);
             color: var(--muted);
         }
-
         .chip-accent {
             border-color: rgba(122, 162, 255, 0.6);
             background: rgba(122, 162, 255, 0.1);
@@ -198,7 +199,7 @@
 
         @media (max-width: 700px) {
             .header-container { flex-direction: column; align-items: flex-start; }
-            .ad-slot-left { width: 100%; max-width: 320px; margin-bottom: 8px; }
+            .ad-slot-left { text-align: left; width: 100%; max-width: 320px; margin-bottom: 8px; }
         }
 
         h3 { margin-top: 12px; margin-bottom: 8px; font-size: 1.1rem; }
@@ -212,7 +213,11 @@
             box-shadow: 0 18px 40px rgba(0, 0, 0, 0.9);
         }
 
-        .player-layout { position: relative; width: 100%; }
+        /* PLAYER LAYOUT: single vs 2x2 grid */
+        .player-layout {
+            position: relative;
+            width: 100%;
+        }
 
         .player-slot {
             background: #050508;
@@ -230,8 +235,54 @@
             background: #050508;
         }
 
+        /* Single-view: one big iframe */
         .player-layout.single { display: block; }
         .player-layout.single .player-slot[data-slot="0"] iframe { height: 480px; }
+
+        /* Multi-view: 2x2 grid, all equal */
+        .player-layout.multi {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .player-layout.multi .player-slot iframe {
+            height: auto;
+            aspect-ratio: 16 / 9;
+            border-radius: 0 0 14px 14px;
+        }
+
+        .player-layout.single .extra-slot { display: none; }
+        .player-layout.multi .extra-slot { display: flex; }
+
+        .multi-slot-header {
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.75);
+            font-size: 0.78rem;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .multi-slot-title {
+            flex: 1 1 auto;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .multi-slot-select {
+            max-width: 260px;
+            font-size: 0.78rem;
+            background: rgba(5, 5, 12, 0.95);
+            color: var(--text);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 3px 8px;
+        }
+
+        @media (max-width: 700px) {
+            .player-layout.single .player-slot[data-slot="0"] iframe { height: 360px; }
+        }
 
         .stream-picker {
             margin-top: 12px;
@@ -251,16 +302,18 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+            transition:
+                background 0.15s ease,
+                border-color 0.15s ease,
+                transform 0.1s ease,
+                box-shadow 0.15s ease;
         }
-
         .stream-button:hover {
             background: var(--button-hover);
             border-color: rgba(122, 162, 255, 0.7);
             transform: translateY(-1px);
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.7);
         }
-
         .stream-button.active {
             background: var(--accent);
             color: #050508;
@@ -269,7 +322,10 @@
             box-shadow: 0 14px 30px rgba(122, 162, 255, 0.5);
         }
 
-        .ad-slot { margin: 16px 0 0; text-align: center; }
+        .ad-slot {
+            margin: 16px 0 0;
+            text-align: center;
+        }
 
         .no-stream {
             margin-top: 30px;
@@ -279,6 +335,122 @@
             border: 1px dashed rgba(122, 162, 255, 0.4);
             color: var(--muted);
             font-size: 0.95rem;
+        }
+
+        /* MULTI-VIEW / VIEW CONTROLS */
+        .multi-view-title {
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .multi-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .multi-toggle-button {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .multi-toggle-button:hover {
+            background: var(--button-hover);
+            border-color: rgba(122, 162, 255, 0.7);
+        }
+
+        /* ========== FULL-PAGE PLAYER MODE FIXED ========== */
+
+        body.full-page-player {
+            overflow: hidden;
+            background: #000;
+        }
+
+        body.full-page-player .page-wrapper {
+            max-width: none;
+            padding: 0;
+            height: 100vh;
+        }
+
+        body.full-page-player header,
+        body.full-page-player .back-link,
+        body.full-page-player footer {
+            display: none;
+        }
+
+        body.full-page-player .player-card {
+            position: fixed;
+            inset: 0;
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 9999;
+        }
+
+        body.full-page-player .player-card h3 { display: none; }
+
+        body.full-page-player .player-layout {
+            flex: 1 1 auto;
+            height: 100%;
+        }
+
+        body.full-page-player .player-layout.single .player-slot[data-slot="0"],
+        body.full-page-player .player-layout.single .player-slot[data-slot="0"] iframe {
+            height: 100%;
+        }
+
+        body.full-page-player .player-layout.multi {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0;
+            height: 100%;
+        }
+
+        body.full-page-player .player-layout.multi .player-slot,
+        body.full-page-player .player-layout.multi .player-slot iframe {
+            height: 100%;
+            border-radius: 0;
+        }
+
+        body.full-page-player .ad-slot { display: none; }
+
+        /* hide stream picker in full-page so it never blocks */
+        body.full-page-player #stream-picker { display: none !important; }
+
+        body.full-page-player .multi-view-title {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0;
+            z-index: 10001;
+        }
+
+        body.full-page-player .multi-view-title span:first-child { display: none; }
+
+        body.full-page-player .multi-controls {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 8px;
+            border-radius: 999px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
         }
     </style>
 </head>
@@ -330,7 +502,6 @@
                             {% endif %}
                         </div>
 
-                        <!-- ✅ Share links: full href, short display -->
                         <div class="meta-row">
                             <strong>Share:</strong>
                             <span class="share-links">
@@ -390,6 +561,39 @@
                             allow="autoplay; encrypted-media; picture-in-picture; fullscreen">
                         </iframe>
                     </div>
+
+                    {% if other_games and other_games|length > 0 %}
+                        {% set options = [] %}
+                        {% for g in other_games %}
+                            {% if g.streams and g.streams|length > 0 %}
+                                {% set _ = options.append(g) %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if options %}
+                            {% for slot_index in [1,2,3] %}
+                                <div class="player-slot extra-slot" data-slot="{{ slot_index }}">
+                                    <div class="multi-slot-header">
+                                        <span class="multi-slot-title">Empty slot</span>
+                                        <select class="multi-slot-select">
+                                            <option value="">Select a game...</option>
+                                            {% for g in options %}
+                                                <option value="{{ g.streams[0].embed_url }}"
+                                                        data-title="{{ (g.matchup or 'Game ' ~ g.id) ~ ' - ' ~ (g.sport or '') }}">
+                                                    {{ g.matchup or ('Game ' ~ g.id) }}{% if g.sport %} ({{ g.sport }}){% endif %}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <iframe
+                                        allowfullscreen
+                                        scrolling="no"
+                                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen">
+                                    </iframe>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
                 </div>
 
                 {% if game.streams|length > 1 %}
@@ -406,6 +610,27 @@
                         {% endfor %}
                     </div>
                 {% endif %}
+
+                <!-- ✅ CONTROLS ARE BACK -->
+                <div class="multi-view-title">
+                    <span>
+                        {% if other_games and other_games|length > 0 %}
+                            Multi-view & size controls
+                        {% else %}
+                            View size controls
+                        {% endif %}
+                    </span>
+                    <div class="multi-controls">
+                        {% if other_games and other_games|length > 0 %}
+                            <button type="button" class="multi-toggle-button" id="multi-toggle">
+                                Enable multi-view
+                            </button>
+                        {% endif %}
+                        <button type="button" class="multi-toggle-button" id="fullscreen-toggle">
+                            Enter full-page
+                        </button>
+                    </div>
+                </div>
 
                 <div class="ad-slot">
                     <script
@@ -426,8 +651,11 @@
 
     <script>
         (function() {
-            const mainIframe = document.getElementById('game-iframe');
-            const picker = document.getElementById('stream-picker');
+            const mainIframe       = document.getElementById('game-iframe');
+            const picker           = document.getElementById('stream-picker');
+            const playerLayout     = document.getElementById('player-layout');
+            const multiToggle      = document.getElementById('multi-toggle');
+            const fullscreenToggle = document.getElementById('fullscreen-toggle');
 
             const requestedSlug = "{{ (requested_stream_slug or '')|e }}";
 
@@ -442,7 +670,6 @@
 
             function activateStreamButton(btn) {
                 if (!btn || !mainIframe || !picker) return false;
-
                 const url = btn.getAttribute('data-embed-url');
                 if (!url) return false;
 
@@ -477,6 +704,56 @@
                     activateStreamBySlug(requestedSlug);
                 }
             }
+
+            if (playerLayout && multiToggle) {
+                let multiOn = false;
+
+                multiToggle.addEventListener('click', function () {
+                    multiOn = !multiOn;
+                    if (multiOn) {
+                        playerLayout.classList.remove('single');
+                        playerLayout.classList.add('multi');
+                        multiToggle.textContent = 'Disable multi-view';
+                    } else {
+                        playerLayout.classList.remove('multi');
+                        playerLayout.classList.add('single');
+                        multiToggle.textContent = 'Enable multi-view';
+                    }
+                });
+
+                const extraSlots = playerLayout.querySelectorAll('.extra-slot');
+                extraSlots.forEach(slot => {
+                    const select = slot.querySelector('.multi-slot-select');
+                    const titleEl = slot.querySelector('.multi-slot-title');
+                    const iframe  = slot.querySelector('iframe');
+
+                    if (!select || !titleEl || !iframe) return;
+
+                    select.addEventListener('change', () => {
+                        const opt   = select.options[select.selectedIndex];
+                        const url   = opt.value;
+                        const title = opt.getAttribute('data-title') || 'Extra stream';
+
+                        if (url) {
+                            iframe.src = url;
+                            titleEl.textContent = title;
+                        } else {
+                            iframe.src = '';
+                            titleEl.textContent = 'Empty slot';
+                        }
+                    });
+                });
+            }
+
+            if (fullscreenToggle) {
+                let fullOn = false;
+
+                fullscreenToggle.addEventListener('click', function () {
+                    fullOn = !fullOn;
+                    document.body.classList.toggle('full-page-player', fullOn);
+                    fullscreenToggle.textContent = fullOn ? 'Exit full-page' : 'Enter full-page';
+                });
+            }
         })();
     </script>
 
@@ -487,15 +764,17 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ path: window.location.pathname })
-                }).catch(function () {});
+                }).catch(function (err) {
+                    if (window.console && console.debug) console.debug("heartbeat error", err);
+                });
             }
+
             sendHeartbeat();
             setInterval(sendHeartbeat, 30000);
         })();
     </script>
 
-    <script defer src="https://static.cloudflareinsights.com/beacon.min.js"
-        data-cf-beacon='{"token": "643968b4db2b4d4c80a6f49718fcfcaa"}'></script>
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "643968b4db2b4d4c80a6f49718fcfcaa"}'></script>
 
 {% if open_ad %}
 <script>
@@ -505,7 +784,11 @@
         'https://broodbelongminiature.com/d01t94kua?key=491dbdc350af1bf2b2f5c05ef1a574df',
         '_blank'
       );
-    } catch (e) {}
+    } catch (e) {
+      if (window.console && console.debug) {
+        console.debug('Ad popunder blocked:', e);
+      }
+    }
   });
 </script>
 {% endif %}
