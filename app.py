@@ -7,9 +7,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 from datetime import datetime, timedelta
 import uuid
-import hashlib
-import fcntl
+import hashlib  # for stable IDs
 import re
+from urllib.parse import urljoin
+
+# For safe-ish CSV updates on Linux
+import fcntl
+import json
 
 import scrape_games  # your scraper module
 
@@ -20,18 +24,20 @@ app.secret_key = "heg9q3248hg90a8dhg98q3h23948ghasdpghiuhweioruhgq8934ghiksadhg2
 
 # ---------------------- ACTIVE VIEWER TRACKER ----------------------
 
-ACTIVE_VIEWERS = {}
-ACTIVE_PAGE_VIEWS = {}
-LAST_VIEWER_PRINT = None
+ACTIVE_VIEWERS = {}        # session_id → last_seen timestamp
+ACTIVE_PAGE_VIEWS = {}     # (session_id, path) → last_seen timestamp
+LAST_VIEWER_PRINT = None   # throttle printing
 
 
 def get_session_id():
+    """Assign each visitor a unique ID if they don't already have one."""
     if "sid" not in session:
         session["sid"] = str(uuid.UUID(bytes=os.urandom(16)))
     return session["sid"]
 
 
 def mark_active():
+    """Mark this session as active (site-wide) and clean out inactive ones."""
     sid = get_session_id()
     now = datetime.utcnow()
     ACTIVE_VIEWERS[sid] = now
@@ -56,17 +62,21 @@ def heartbeat():
     ACTIVE_PAGE_VIEWS[(sid, path)] = now
 
     cutoff = now - timedelta(seconds=45)
+
     for key, ts in list(ACTIVE_PAGE_VIEWS.items()):
         if ts < cutoff:
             del ACTIVE_PAGE_VIEWS[key]
+
     for s, ts in list(ACTIVE_VIEWERS.items()):
         if ts < cutoff:
             del ACTIVE_VIEWERS[s]
 
     if LAST_VIEWER_PRINT is None or (now - LAST_VIEWER_PRINT) > timedelta(seconds=60):
         total_active = len(ACTIVE_VIEWERS)
+
         home_sids = {sid for (sid, p) in ACTIVE_PAGE_VIEWS.keys() if p == "/"}
         home_count = len(home_sids)
+
         game_sids = {sid for (sid, p) in ACTIVE_PAGE_VIEWS.keys() if p.startswith("/game/") or p.startswith("/g/")}
         game_count = len(game_sids)
 
@@ -87,11 +97,42 @@ def safe_lower(value):
 
 def make_stable_id(row):
     """
-    Stable integer ID derived from game identity fields.
+    Stable ID based on fields so CSV reorder doesn't change it.
     """
     key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
     digest = hashlib.md5(key.encode("utf-8")).hexdigest()
     return int(digest[:8], 16)
+
+
+def slugify(text: str) -> str:
+    """
+    URL-safe slug: lowercase, remove punctuation, collapse dashes.
+    """
+    if not isinstance(text, str):
+        return ""
+    s = text.strip().lower()
+    s = re.sub(r"['\"`]", "", s)
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s
+
+
+def game_slug(game: dict) -> str:
+    """
+    Deterministic name-based slug for /g/<slug>.
+    Includes date + matchup + sport for uniqueness.
+    """
+    # date_header might be like "Friday, December 19, 2025"
+    date_part = slugify(str(game.get("date_header") or "today"))
+    matchup_part = slugify(str(game.get("matchup") or "game"))
+    sport_part = slugify(str(game.get("sport") or "sport"))
+    base = f"{date_part}-{matchup_part}-{sport_part}"
+    base = re.sub(r"-{2,}", "-", base).strip("-")
+
+    # short stable suffix from game_id to prevent collisions
+    gid = str(game.get("id") or "")
+    suffix = gid[-4:] if gid else "0000"
+    return f"{base}-{suffix}"
 
 
 def normalize_bool(v):
@@ -104,6 +145,9 @@ def normalize_bool(v):
 
 
 def parse_streams_cell(cell_value):
+    """
+    CSV stores streams as python-literal list of dicts.
+    """
     if cell_value is None or (isinstance(cell_value, float) and pd.isna(cell_value)):
         return []
     if isinstance(cell_value, list):
@@ -194,88 +238,20 @@ def require_admin():
     return got == required
 
 
-# ---------------------- SLUGGING ----------------------
-
-_slug_re = re.compile(r"[^a-z0-9]+")
-
-def slugify_text(s: str) -> str:
-    if not isinstance(s, str):
-        return ""
-    s = s.strip().lower()
-    s = _slug_re.sub("-", s)
-    s = s.strip("-")
-    return s
-
-
-def game_slug_from(game_id: int, matchup: str) -> str:
+def _dedup_stream_slug(slug: str, seen: set) -> str:
     """
-    Permanent, unique slug for a game:
-      <matchup-slug>-<gameidhex>
-
-    This stays stable because game_id is stable (md5 of identity fields).
+    Ensure unique slugs per game stream list.
     """
-    ms = slugify_text(matchup) or "game"
-    suffix = f"{int(game_id):08x}"  # stable hex
-    return f"{ms}-{suffix}"
+    if not slug:
+        slug = "stream"
+    base = slug
+    i = 2
+    while slug in seen:
+        slug = f"{base}-{i}"
+        i += 1
+    seen.add(slug)
+    return slug
 
-
-def stable_stream_slug(label: str, embed_url: str) -> str:
-    base = slugify_text(label) or "stream"
-    u = (embed_url or "").strip()
-    if not u:
-        return base
-    h = hashlib.md5(u.encode("utf-8")).hexdigest()[:6]
-    return f"{base}-{h}"
-
-
-# ---------------------- VIEW HELPERS ----------------------
-
-def get_game_view_counts(cutoff_seconds=45):
-    now = datetime.utcnow()
-    cutoff = now - timedelta(seconds=cutoff_seconds)
-    counts = {}
-
-    for (sid, path), ts in list(ACTIVE_PAGE_VIEWS.items()):
-        if ts < cutoff:
-            continue
-        if not (path.startswith("/game/") or path.startswith("/g/")):
-            continue
-        # only count /game/<id>
-        if path.startswith("/game/"):
-            try:
-                game_id_str = path.rstrip("/").split("/")[-1]
-                game_id_str = game_id_str.split("?")[0]
-                game_id = int(game_id_str)
-            except ValueError:
-                continue
-            counts[game_id] = counts.get(game_id, 0) + 1
-
-    return counts
-
-
-def get_most_viewed_games(all_games, limit=5):
-    counts = get_game_view_counts()
-    if not counts:
-        return []
-
-    games_by_id = {g["id"]: g for g in all_games}
-    sorted_ids = sorted(counts.keys(), key=lambda gid: counts[gid], reverse=True)
-
-    result = []
-    for gid in sorted_ids:
-        game = games_by_id.get(gid)
-        if not game:
-            continue
-        g_copy = dict(game)
-        g_copy["active_viewers"] = counts[gid]
-        result.append(g_copy)
-        if len(result) >= limit:
-            break
-
-    return result
-
-
-# ---------------------- READ: LOAD GAMES ----------------------
 
 def load_games():
     if not os.path.exists(DATA_PATH):
@@ -307,19 +283,17 @@ def load_games():
                 if isinstance(parsed, list):
                     for s in parsed:
                         if isinstance(s, dict) and s.get("embed_url"):
-                            label = s.get("label") or "Stream"
-                            embed_url = s.get("embed_url")
                             streams.append({
-                                "label": label,
-                                "embed_url": embed_url,
-                                "slug": stable_stream_slug(label, embed_url),
+                                "label": s.get("label") or "Stream",
+                                "embed_url": s.get("embed_url"),
+                                "watch_url": s.get("watch_url"),
                             })
             except Exception as e:
                 print(f"[load_games][ERROR] Error parsing streams for row {idx}: {e}")
                 streams = []
 
+        # stable game id
         game_id = make_stable_id(row)
-        gslug = game_slug_from(game_id, row.get("matchup") or "")
 
         raw_sport = row.get("sport")
         if isinstance(raw_sport, str):
@@ -337,13 +311,11 @@ def load_games():
             try:
                 dt = pd.to_datetime(raw_time)
                 time_display = dt.strftime("%I:%M %p ET").lstrip("0")
-            except Exception as e:
-                print(f"[load_games][WARN] Could not parse time for row {idx}: {raw_time} ({e})")
+            except Exception:
                 time_display = None
 
-        games.append({
+        game_obj = {
             "id": game_id,
-            "slug": gslug,                 # ✅ NEW
             "date_header": row.get("date_header"),
             "sport": sport,
             "time_unix": row.get("time_unix"),
@@ -354,12 +326,69 @@ def load_games():
             "watch_url": row.get("watch_url"),
             "streams": streams,
             "is_live": is_live,
-        })
+        }
+
+        # attach game slug
+        game_obj["slug"] = game_slug(game_obj)
+
+        # attach stream slugs (based on label)
+        seen = set()
+        for s in game_obj["streams"]:
+            label = (s.get("label") or "Stream")
+            s_slug = slugify(label)
+            s["slug"] = _dedup_stream_slug(s_slug, seen)
+
+        games.append(game_obj)
 
     return games
 
 
-# ---------------------- WRITE API: ADD/UPSERT/REMOVE (unchanged behavior) ----------------------
+def get_game_view_counts(cutoff_seconds=45):
+    now = datetime.utcnow()
+    cutoff = now - timedelta(seconds=cutoff_seconds)
+    counts = {}
+
+    for (sid, path), ts in list(ACTIVE_PAGE_VIEWS.items()):
+        if ts < cutoff:
+            continue
+        if not (path.startswith("/game/") or path.startswith("/g/")):
+            continue
+
+        # only count numeric /game/<id>
+        if path.startswith("/game/"):
+            try:
+                game_id_str = path.rstrip("/").split("/")[-1]
+                game_id = int(game_id_str)
+            except ValueError:
+                continue
+            counts[game_id] = counts.get(game_id, 0) + 1
+
+    return counts
+
+
+def get_most_viewed_games(all_games, limit=5):
+    counts = get_game_view_counts()
+    if not counts:
+        return []
+
+    games_by_id = {g["id"]: g for g in all_games}
+    sorted_ids = sorted(counts.keys(), key=lambda gid: counts[gid], reverse=True)
+
+    result = []
+    for gid in sorted_ids:
+        game = games_by_id.get(gid)
+        if not game:
+            continue
+        g_copy = dict(game)
+        g_copy["active_viewers"] = counts[gid]
+        result.append(g_copy)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
+# ---------------------- WRITE API ----------------------
 
 CSV_COLS = [
     "source", "date_header", "sport", "time_unix", "time",
@@ -384,7 +413,7 @@ def merge_streams(existing, incoming):
         return (
             (s.get("embed_url") or "").strip(),
             (s.get("watch_url") or "").strip(),
-            (s.get("label") or "").strip().lower(),
+            (s.get("label") or "").strip().lower()
         )
 
     seen = set()
@@ -436,7 +465,7 @@ def api_add_streams():
     incoming_streams = payload.get("streams")
     if incoming_streams is None:
         single = payload.get("stream")
-        incoming_streams = [single] if isinstance(single, dict) else []
+        incoming_streams = [single] if single else []
 
     if not isinstance(incoming_streams, list):
         return jsonify({"ok": False, "error": "streams must be a list"}), 400
@@ -469,6 +498,7 @@ def api_add_streams():
         df.at[idx, "is_live"] = bool(payload.get("set_is_live"))
 
     write_csv_locked(df[CSV_COLS], fh)
+
     return jsonify({"ok": True, "game_id": game_id, "streams_count": len(merged)})
 
 
@@ -478,6 +508,7 @@ def api_games_remove():
         return jsonify({"ok": False, "error": "unauthorized"}), 401
 
     payload = request.get_json(silent=True) or {}
+
     if "game_id" not in payload:
         return jsonify({"ok": False, "error": "missing game_id"}), 400
 
@@ -510,6 +541,7 @@ def api_games_upsert():
 
     payload = request.get_json(silent=True) or {}
 
+    games = []
     if isinstance(payload.get("game"), dict):
         games = [payload["game"]]
     elif isinstance(payload.get("games"), list):
@@ -523,7 +555,6 @@ def api_games_upsert():
             df[c] = ""
 
     upserted = []
-
     for g in games:
         row_like = {
             "date_header": g.get("date_header", ""),
@@ -590,6 +621,7 @@ def index():
     games = list(all_games)
 
     q = request.args.get("q", "").strip().lower()
+
     if q:
         games = [
             g for g in games
@@ -621,48 +653,85 @@ def index():
     )
 
 
-def _render_game(game, games):
-    other_games = [
-        g for g in games
-        if g["id"] != game["id"] and g.get("streams") and len(g["streams"]) > 0
-    ]
-    open_ad = random.random() < 0.25
+def _absolute_url(path: str) -> str:
+    """
+    Convert a relative path (/static/...) to absolute for OG tags.
+    """
+    return urljoin(request.url_root, path.lstrip("/"))
+
+
+@app.route("/game/<int:game_id>")
+def game_detail(game_id: int):
+    mark_active()
+
     requested_stream_slug = request.args.get("stream", "").strip()
 
-    # handy share links
-    share_id_url = url_for("game_detail", game_id=game["id"], _external=False)
-    share_slug_url = url_for("game_by_slug", game_slug=game["slug"], _external=False)
+    games = load_games()
+    game = next((g for g in games if g["id"] == game_id), None)
+    if not game:
+        abort(404)
+
+    # Other games for multiview
+    other_games = [
+        g for g in games
+        if g["id"] != game_id and g.get("streams") and len(g["streams"]) > 0
+    ]
+
+    open_ad = random.random() < 0.25
+
+    # share urls
+    slug = game.get("slug") or game_slug(game)
+    share_id_url = _absolute_url(url_for("game_detail", game_id=game_id))
+    share_slug_url = _absolute_url(url_for("game_by_slug", slug=slug))
+
+    # OG image absolute
+    og_image_url = _absolute_url(url_for("static", filename="preview.png"))
 
     return render_template(
         "game.html",
         game=game,
         other_games=other_games,
         open_ad=open_ad,
-        requested_stream_slug=requested_stream_slug,
         share_id_url=share_id_url,
         share_slug_url=share_slug_url,
+        og_image_url=og_image_url,
+        requested_stream_slug=requested_stream_slug,
     )
 
 
-@app.route("/game/<int:game_id>")
-def game_detail(game_id):
+@app.route("/g/<slug>")
+def game_by_slug(slug: str):
+    """
+    Name-based permanent-ish link:
+      /g/<slug>
+    We resolve to the correct game_id then render the same page.
+    """
     mark_active()
+
+    slug = (slug or "").strip().lower()
+    if not slug:
+        abort(404)
+
     games = load_games()
-    game = next((g for g in games if g["id"] == game_id), None)
+
+    # exact match
+    game = next((g for g in games if (g.get("slug") or "").lower() == slug), None)
+
+    # fallback: try "starts with" (in case you changed suffix behavior)
+    if not game:
+        game = next((g for g in games if (g.get("slug") or "").lower().startswith(slug)), None)
+
     if not game:
         abort(404)
-    return _render_game(game, games)
 
+    # keep stream selection param if present
+    qs = request.query_string.decode("utf-8", errors="ignore").strip()
+    target = url_for("game_detail", game_id=game["id"])
+    if qs:
+        target = f"{target}?{qs}"
 
-# ✅ NEW: access by name slug
-@app.route("/g/<game_slug>")
-def game_by_slug(game_slug):
-    mark_active()
-    games = load_games()
-    game = next((g for g in games if g.get("slug") == game_slug), None)
-    if not game:
-        abort(404)
-    return _render_game(game, games)
+    # Redirect to canonical numeric route (good for caching + consistent view counting)
+    return redirect(target, code=302)
 
 
 # ---------------------- SCHEDULER ----------------------
