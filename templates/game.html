@@ -47,11 +47,11 @@
             margin: 0;
             min-height: 100vh;
             font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            background:
-                radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
+            background: radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
             color: var(--text);
         }
 
+        /* ✅ RESTORED: do NOT reserve space for the banner */
         .page-wrapper {
             max-width: 1100px;
             margin: 0 auto;
@@ -80,8 +80,7 @@
             border-radius: 20px;
             padding: 16px 18px;
             margin-bottom: 18px;
-            background:
-                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
+            background: linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
             border: 1px solid rgba(122, 162, 255, 0.25);
             box-shadow: var(--shadow-soft);
         }
@@ -374,7 +373,6 @@
         }
 
         /* ========== FULL-PAGE PLAYER MODE FIXED ========== */
-
         body.full-page-player {
             overflow: hidden;
             background: #000;
@@ -431,8 +429,6 @@
         }
 
         body.full-page-player .ad-slot { display: none; }
-
-        /* hide stream picker in full-page so it never blocks */
         body.full-page-player #stream-picker { display: none !important; }
 
         body.full-page-player .multi-view-title {
@@ -452,11 +448,46 @@
             border-radius: 999px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
         }
+
+        /* ✅ FIXED RIGHT RAIL BANNER — OUTSIDE FLOW, DOES NOT RESIZE ANYTHING */
+        .stake-rail {
+            position: fixed;
+            right: 16px;
+            top: 140px;
+            width: 160px;
+            z-index: 2500;
+        }
+
+        .stake-rail .box {
+            width: 160px;
+            height: 600px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85);
+            background: rgba(0,0,0,0.35);
+        }
+
+        .stake-rail a,
+        .stake-rail img {
+            display: block;
+            width: 160px;
+            height: 600px;
+        }
+
+        /* hide on smaller screens to avoid overlap */
+        @media (max-width: 1280px) {
+            .stake-rail { display: none; }
+        }
+
+        /* hide in full-page mode */
+        body.full-page-player .stake-rail { display: none; }
     </style>
 </head>
 
 <body>
     {% set short_slug = (game.slug or '') %}
+
     <div class="page-wrapper">
         <div class="back-link">
             <a href="{{ url_for('index') }}">&larr; Back to today’s games</a>
@@ -611,7 +642,7 @@
                     </div>
                 {% endif %}
 
-                <!-- ✅ CONTROLS ARE BACK -->
+                <!-- ✅ CONTROLS -->
                 <div class="multi-view-title">
                     <span>
                         {% if other_games and other_games|length > 0 %}
@@ -647,6 +678,21 @@
                 Check back closer to game time or try another stream.
             </div>
         {% endif %}
+    </div>
+
+    <!-- ✅ FIXED banner OUTSIDE .page-wrapper so it never changes layout -->
+    <div class="stake-rail" aria-label="Stake promo">
+        <div class="box">
+            <a href="https://stake.com/?c=thestreamden" target="_blank" rel="noopener noreferrer">
+                <img
+                    src="{{ url_for('static', filename='Banners_160x600.gif') }}"
+                    width="160"
+                    height="600"
+                    alt="Stake promo"
+                    loading="lazy"
+                >
+            </a>
+        </div>
     </div>
 
     <script>
