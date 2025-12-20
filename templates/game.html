@@ -47,8 +47,7 @@
             margin: 0;
             min-height: 100vh;
             font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            background:
-                radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
+            background: radial-gradient(circle at top, #151521 0, #050508 45%, #000 100%);
             color: var(--text);
         }
 
@@ -81,8 +80,7 @@
             border-radius: 20px;
             padding: 16px 18px;
             margin-bottom: 18px;
-            background:
-                linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
+            background: linear-gradient(135deg, rgba(122, 162, 255, 0.09), rgba(0, 0, 0, 0.8));
             border: 1px solid rgba(122, 162, 255, 0.25);
             box-shadow: var(--shadow-soft);
         }
@@ -136,6 +134,30 @@
 
         .meta-row { margin: 2px 0; }
         .meta strong { color: #dddddd; font-weight: 500; }
+
+        /* ✅ share link styling */
+        .share-links {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .share-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(122, 162, 255, 0.35);
+            background: rgba(122, 162, 255, 0.08);
+            color: #dde5ff;
+            font-size: 0.84rem;
+            max-width: 100%;
+        }
+        .share-pill:hover {
+            border-color: rgba(122, 162, 255, 0.75);
+            background: rgba(122, 162, 255, 0.14);
+        }
 
         .support-note {
             margin-top: 8px;
@@ -229,11 +251,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            transition:
-                background 0.15s ease,
-                border-color 0.15s ease,
-                transform 0.1s ease,
-                box-shadow 0.15s ease;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
         }
 
         .stream-button:hover {
@@ -266,6 +284,7 @@
 </head>
 
 <body>
+    {% set short_slug = (game.slug or '') %}
     <div class="page-wrapper">
         <div class="back-link">
             <a href="{{ url_for('index') }}">&larr; Back to today’s games</a>
@@ -298,7 +317,7 @@
                             <strong>Tournament:</strong>
                             {{ game.tournament or 'N/A' }}
                             {% if game.tournament_url %}
-                                &mdash; <a href="{{ game.tournament_url }}" target="_blank">Tournament page ↗</a>
+                                &mdash; <a href="{{ game.tournament_url }}" target="_blank" rel="noopener">Tournament page ↗</a>
                             {% endif %}
                         </div>
 
@@ -311,12 +330,28 @@
                             {% endif %}
                         </div>
 
-                        <!-- ✅ FIXED: show BOTH links -->
+                        <!-- ✅ Share links: full href, short display -->
                         <div class="meta-row">
                             <strong>Share:</strong>
-                            <a href="{{ share_slug_url }}" target="_blank" rel="noopener">{{ share_slug_url }}</a>
-                            &nbsp;|&nbsp;
-                            <a href="{{ share_id_url }}" target="_blank" rel="noopener">{{ share_id_url }}</a>
+                            <span class="share-links">
+                                <a class="share-pill"
+                                   href="{{ share_slug_url }}"
+                                   target="_blank" rel="noopener"
+                                   title="{{ share_slug_url }}">
+                                    {% if short_slug %}
+                                        /g/{{ short_slug }}
+                                    {% else %}
+                                        /g/…
+                                    {% endif %}
+                                </a>
+
+                                <a class="share-pill"
+                                   href="{{ share_id_url }}"
+                                   target="_blank" rel="noopener"
+                                   title="{{ share_id_url }}">
+                                    /game/{{ game.id }}
+                                </a>
+                            </span>
                         </div>
 
                         <div class="support-note">
@@ -425,10 +460,9 @@
 
             function activateStreamBySlug(slug) {
                 if (!picker || !slug) return false;
-
-                const btn = picker.querySelector('.stream-button[data-stream-slug="' + slug.replace(/"/g, '\\"') + '"]');
+                const safe = slug.replace(/"/g, '\\"');
+                const btn = picker.querySelector('.stream-button[data-stream-slug="' + safe + '"]');
                 if (!btn) return false;
-
                 return activateStreamButton(btn);
             }
 
@@ -439,7 +473,6 @@
                     activateStreamButton(btn);
                 });
 
-                // if user loaded page with ?stream=<slug>, auto-select it
                 if (requestedSlug) {
                     activateStreamBySlug(requestedSlug);
                 }
