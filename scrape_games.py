@@ -242,7 +242,7 @@ def scrape_today_games_sport71() -> pd.DataFrame:
                 watch_url = watch_link["href"] if (watch_link and watch_link.has_attr("href")) else None
 
                 now_est = datetime.now(EST)
-                is_live = bool(event_dt and event_dt <= now_est <= event_dt + timedelta(hours=2.5))
+                is_live = bool(event_dt and event_dt <= now_est <= event_dt + timedelta(hours=5))
 
                 rows.append({
                     "source": "sport71",
