@@ -750,7 +750,7 @@ def start_scheduler():
     scheduler.add_job(
         run_scraper_job,
         "interval",
-        minutes=5,
+        minutes=20,
         id="scrape_job",
         replace_existing=True,
     )
