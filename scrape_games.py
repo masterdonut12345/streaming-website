@@ -131,6 +131,15 @@ def _should_keep_existing(row: dict) -> bool:
 # ---------------- SPORT71 ----------------
 
 _IFRAME_RE = re.compile(r'https?://[^\s"\']+')
+_CHAT_MARKERS = ("text-chat", "/chat", "chat_room", "chatroom")
+
+
+def _looks_like_chat(url: str) -> bool:
+    if not url:
+        return False
+    low = url.lower()
+    return any(marker in low for marker in _CHAT_MARKERS)
+
 
 def scrape_sport71() -> pd.DataFrame:
     r = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
@@ -200,9 +209,12 @@ def scrape_sport71() -> pd.DataFrame:
             for iframe in soup.find_all("iframe"):
                 src = iframe.get("src") or iframe.get("data-src")
                 if src:
+                    full = urljoin(w, src)
+                    if _looks_like_chat(full):
+                        continue
                     streams.append({
                         "label": "Stream",
-                        "embed_url": urljoin(w, src),
+                        "embed_url": full,
                         "watch_url": w,
                         "origin": "scraped",
                     })
@@ -210,7 +222,7 @@ def scrape_sport71() -> pd.DataFrame:
             for script in soup.find_all("script"):
                 text = script.string or ""
                 for m in _IFRAME_RE.findall(text):
-                    if "embed" in m or "player" in m:
+                    if ("embed" in m or "player" in m) and not _looks_like_chat(m):
                         streams.append({
                             "label": "Stream",
                             "embed_url": m,
@@ -232,6 +244,7 @@ def scrape_sport71() -> pd.DataFrame:
 
 _OPENEMBED_RE = re.compile(r"openEmbed\(\s*'([^']+)'\s*\)", re.I)
 _WINDOWOPEN_RE = re.compile(r"window\.open\(\s*'([^']+)'\s*,", re.I)
+_HREF_URL_RE = re.compile(r"https?://[^\\s\"']+", re.I)
 
 def scrape_shark() -> pd.DataFrame:
     r = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
@@ -255,16 +268,49 @@ def scrape_shark() -> pd.DataFrame:
         if not _today_or_tomorrow(dt):
             continue
 
-        embed = None
+        embed_urls = []
         for a in div.find_all("a"):
             onclick = a.get("onclick", "")
             m = _OPENEMBED_RE.search(onclick) or _WINDOWOPEN_RE.search(onclick)
             if m:
-                embed = urljoin(BASE_URL_SHARK, m.group(1))
-                break
+                embed_urls.append(urljoin(BASE_URL_SHARK, m.group(1)))
+            for attr in ("data-href", "data-embed", "href"):
+                href = a.get(attr)
+                if href and href != "#":
+                    embed_urls.append(urljoin(BASE_URL_SHARK, href))
 
-        if not embed:
+        # scan inline scripts within the row for openEmbed calls
+        for script in div.find_all("script"):
+            text = script.string or script.text or ""
+            for m in _OPENEMBED_RE.finditer(text):
+                embed_urls.append(urljoin(BASE_URL_SHARK, m.group(1)))
+            for m in _WINDOWOPEN_RE.finditer(text):
+                embed_urls.append(urljoin(BASE_URL_SHARK, m.group(1)))
+            for m in _HREF_URL_RE.finditer(text):
+                maybe = m.group(0)
+                if "embed" in maybe or "player" in maybe:
+                    embed_urls.append(urljoin(BASE_URL_SHARK, maybe))
+
+        # Normalize and deduplicate
+        norm_urls = []
+        seen_urls = set()
+        for u in embed_urls:
+            if not u:
+                continue
+            if u in seen_urls:
+                continue
+            seen_urls.add(u)
+            norm_urls.append(u)
+
+        if not norm_urls:
             continue
+
+        streams = [{
+            "label": "SharkStreams",
+            "embed_url": u,
+            "watch_url": u,
+            "origin": "scraped",
+        } for u in norm_urls]
 
         rows.append({
             "source": "sharkstreams",
@@ -275,14 +321,9 @@ def scrape_shark() -> pd.DataFrame:
             "tournament": None,
             "tournament_url": None,
             "matchup": name_span.text.strip(),
-            "watch_url": embed,
-            "streams": [{
-                "label": "SharkStreams",
-                "embed_url": embed,
-                "watch_url": embed,
-                "origin": "scraped",
-            }],
-            "embed_url": embed,
+            "watch_url": norm_urls[0],
+            "streams": streams,
+            "embed_url": norm_urls[0],
             "is_live": False,
         })
 
