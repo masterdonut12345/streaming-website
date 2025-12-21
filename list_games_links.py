@@ -143,6 +143,7 @@ def collect_games_from_scrapers() -> List[Dict[str, Any]]:
                 "matchup": data.get("matchup"),
                 "tournament": data.get("tournament"),
                 "time": data.get("time"),
+                "time_unix": data.get("time_unix"),
             }
     return list(games.values())
 
@@ -166,6 +167,7 @@ def collect_games_from_csv() -> List[Dict[str, Any]]:
             "matchup": data.get("matchup"),
             "tournament": data.get("tournament"),
             "time": data.get("time"),
+            "time_unix": data.get("time_unix"),
         }
     return list(games.values())
 
@@ -209,9 +211,22 @@ def main():
     for g in games:
         by_sport.setdefault(g["sport"], []).append(g)
 
+    def sort_key(g: Dict[str, Any]):
+        # Prefer numeric time_unix, then string time, then matchup
+        tu = g.get("time_unix")
+        try:
+            tu_val = float(tu) if tu is not None and tu != "" else None
+        except Exception:
+            tu_val = None
+        return (
+            tu_val if tu_val is not None else float("inf"),
+            str(g.get("time") or ""),
+            str(g.get("matchup") or ""),
+        )
+
     for sport in sorted(by_sport.keys()):
         print(f"=== {sport} ===")
-        for game in sorted(by_sport[sport], key=lambda g: (g.get("time") or "", g.get("matchup") or "")):
+        for game in sorted(by_sport[sport], key=sort_key):
             print(format_game_line(BASE_SITE_URL, game))
         print()
 
