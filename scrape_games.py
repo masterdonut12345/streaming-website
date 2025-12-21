@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytz
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from typing import List, Dict, Any
 import ast
 import os
@@ -256,7 +256,11 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
             if href_ok or aria_hint:
                 full_link = urljoin(watch_url, href)
                 # Only follow links on the same site that look like stream selectors
-                if full_link.startswith(BASE_URL_SPORT71) and full_link != watch_url:
+                watch_host = urlparse(watch_url).netloc
+                link_host = urlparse(full_link).netloc
+                base_host = urlparse(BASE_URL_SPORT71).netloc
+                same_site = (link_host == watch_host) or (link_host == base_host)
+                if same_site and full_link != watch_url:
                     btn_links.append((label, full_link))
 
         # Deduplicate links while preserving order
