@@ -288,7 +288,10 @@ def scrape_sport71() -> pd.DataFrame:
             # Follow additional stream links shown under/near the embed (Sport7 stream selectors)
             extra_links = []
             for a in soup.find_all("a"):
-                text = (a.get_text(strip=True) or "").lower()
+                text_raw = (a.get_text(strip=True) or "")
+                text = text_raw.lower()
+                aria = (a.get("aria-label") or "").lower()
+                classes = " ".join(a.get("class") or [])
                 attrs = [a.get(attr) for attr in ("href", "data-embed", "data-href", "data-src")]
                 for val in attrs:
                     if not val:
@@ -296,21 +299,26 @@ def scrape_sport71() -> pd.DataFrame:
                     full = urljoin(w, val)
                     if _looks_like_chat(full):
                         continue
-                    # If the attribute itself is an embed URL, keep it directly
+                    # Direct embed URLs (rare)
                     if "topembed" in full or "embed" in full or "channel" in full or "player" in full:
                         streams.append({
-                            "label": (a.get_text(strip=True) or "Stream")[:64] or "Stream",
+                            "label": (text_raw or "Stream")[:64] or "Stream",
                             "embed_url": full,
                             "watch_url": w,
                             "origin": "scraped",
                         })
                         continue
-                    # Otherwise, decide whether to follow the link for more embeds
-                    same_site = BASE_URL_SPORT71.split("://")[-1] in full
-                    if same_site or "sport7" in full:
+                    same_site = BASE_URL_SPORT71.split("://")[-1] in full or "sport7" in full
+                    is_stream_button = (
+                        "stream-button" in classes
+                        or "select stream" in aria
+                        or "stream=" in full
+                    )
+                    label_hint = ("stream" in text or "link" in text or "channel" in text or "sport7" in text)
+                    if same_site and is_stream_button:
                         if full != w:
                             extra_links.append(full)
-                    elif "stream" in text or "link" in text or "channel" in text:
+                    elif same_site and label_hint and full != w:
                         extra_links.append(full)
 
             # Deduplicate links before fetching
