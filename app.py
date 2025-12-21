@@ -150,6 +150,37 @@ def normalize_sport_name(value):
         return "Other"
 
 
+def coerce_start_datetime(rowd):
+    """
+    Try to produce a timezone-aware UTC datetime from available fields.
+    Returns None if no reliable timestamp is present.
+    """
+    # Prefer unix timestamp if present
+    ts = rowd.get("time_unix")
+    if ts not in (None, ""):
+        try:
+            ts_float = float(ts)
+            if not pd.isna(ts_float):
+                # detect ms vs seconds
+                if ts_float > 1e11:  # likely ms
+                    ts_float = ts_float / 1000.0
+                return datetime.fromtimestamp(ts_float, tz=timezone.utc)
+        except Exception:
+            pass
+
+    # fallback: parse "time" column
+    raw_time = rowd.get("time")
+    if isinstance(raw_time, str) and raw_time.strip():
+        try:
+            dt = pd.to_datetime(raw_time, utc=True, errors="coerce")
+            if isinstance(dt, pd.Timestamp) and not pd.isna(dt):
+                return dt.to_pydatetime()
+        except Exception:
+            return None
+
+    return None
+
+
 def make_stable_id(row):
     key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
     digest = hashlib.md5(key.encode("utf-8")).hexdigest()
@@ -413,6 +444,29 @@ def _build_games_from_df(df: pd.DataFrame):
                     sport = mapped
                     break
         sport = sport or "Other"
+
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
 
         normalized_sport = sport.lower() if isinstance(sport, str) else ""
         needs_infer = (
