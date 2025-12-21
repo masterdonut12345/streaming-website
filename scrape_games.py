@@ -24,6 +24,7 @@ from typing import List, Dict, Any
 import ast
 import os
 import fcntl
+import hashlib
 
 # ---------------- CONFIG ----------------
 
@@ -72,11 +73,60 @@ def _streams_to_cell(streams):
     return repr(_dedup_streams(streams))
 
 def _is_manual(st):
-    return st.get("origin") == "manual"
+    origin = st.get("origin")
+    # Treat missing/unknown origin as manual so scraper refreshes don't wipe user-added streams
+    return origin != "scraped"
 
 def _today_or_tomorrow(dt):
     now = datetime.now(EST).date()
     return dt.date() in (now, now + timedelta(days=1))
+
+def _normalize_bool(v):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    return s in ("1", "true", "yes", "y", "live", "t")
+
+def _stable_game_id(row: dict) -> int:
+    """
+    Mirror the web app's stable ID generation so scraper merges align with cache keys.
+    """
+    key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
+    digest = hashlib.md5(key.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16)
+
+def _ensure_cols(df: pd.DataFrame) -> pd.DataFrame:
+    for c in CSV_COLS:
+        if c not in df.columns:
+            df[c] = None
+    return df
+
+def _should_keep_existing(row: dict) -> bool:
+    """
+    Keep manual/older rows unless they are clearly stale (older than ~1 day in UTC).
+    """
+    now = datetime.now(UTC)
+    ts = row.get("time_unix")
+    try:
+        ts_val = float(ts)
+        dt = datetime.fromtimestamp(ts_val / 1000, tz=UTC)
+        return dt >= now - timedelta(days=1)
+    except Exception:
+        pass
+
+    try:
+        dt = pd.to_datetime(row.get("time"), errors="coerce")
+        if not pd.isna(dt):
+            if dt.tzinfo is None:
+                dt = UTC.localize(dt)
+            return dt >= now - timedelta(days=1)
+    except Exception:
+        pass
+
+    # If we cannot parse a time, err on the side of keeping it so we don't drop valid manual entries
+    return True
 
 # ---------------- SPORT71 ----------------
 
@@ -260,18 +310,41 @@ def main():
 
     with open(OUTPUT_FILE, "r+", encoding="utf-8") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
-        df_old = pd.read_csv(fh)
+        df_old = _ensure_cols(pd.read_csv(fh))
+        df_new = _ensure_cols(df_new)
+
+        # Build a lookup of existing rows by stable ID so we don't drop manual edits
+        old_map = {}
+        for _, row in df_old.iterrows():
+            rd = row.to_dict()
+            old_map[_stable_game_id(rd)] = rd
 
         out_rows = []
 
+        # Merge scraped rows with existing where possible
         for _, row in df_new.iterrows():
-            old_match = df_old[df_old["matchup"] == row["matchup"]]
-            old_streams = _parse_streams_cell(old_match.iloc[0]["streams"]) if not old_match.empty else []
-            merged = merge_streams(row["streams"], old_streams)
+            rd = row.to_dict()
+            gid = _stable_game_id(rd)
+            old = old_map.pop(gid, None)
 
-            row["streams"] = merged
-            row["embed_url"] = merged[0]["embed_url"] if merged else None
-            out_rows.append(row)
+            old_streams = _parse_streams_cell(old.get("streams")) if old else []
+            merged = merge_streams(rd.get("streams") or [], old_streams)
+
+            rd["streams"] = merged
+            rd["embed_url"] = rd.get("embed_url") or (merged[0]["embed_url"] if merged else None)
+            rd["is_live"] = _normalize_bool(old.get("is_live") if old else rd.get("is_live"))
+
+            out_rows.append(rd)
+
+        # Carry forward unmatched (typically manual) rows so they are not wiped out
+        for _, rd in old_map.items():
+            if not _should_keep_existing(rd):
+                continue
+            streams = _parse_streams_cell(rd.get("streams"))
+            rd["streams"] = streams
+            rd["embed_url"] = rd.get("embed_url") or (streams[0]["embed_url"] if streams else None)
+            rd["is_live"] = _normalize_bool(rd.get("is_live"))
+            out_rows.append(rd)
 
         fh.seek(0)
         fh.truncate()

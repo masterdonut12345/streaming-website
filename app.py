@@ -150,37 +150,6 @@ def normalize_sport_name(value):
         return "Other"
 
 
-def coerce_start_datetime(rowd):
-    """
-    Try to produce a timezone-aware UTC datetime from available fields.
-    Returns None if no reliable timestamp is present.
-    """
-    # Prefer unix timestamp if present
-    ts = rowd.get("time_unix")
-    if ts not in (None, ""):
-        try:
-            ts_float = float(ts)
-            if not pd.isna(ts_float):
-                # detect ms vs seconds
-                if ts_float > 1e11:  # likely ms
-                    ts_float = ts_float / 1000.0
-                return datetime.fromtimestamp(ts_float, tz=timezone.utc)
-        except Exception:
-            pass
-
-    # fallback: parse "time" column
-    raw_time = rowd.get("time")
-    if isinstance(raw_time, str) and raw_time.strip():
-        try:
-            dt = pd.to_datetime(raw_time, utc=True, errors="coerce")
-            if isinstance(dt, pd.Timestamp) and not pd.isna(dt):
-                return dt.to_pydatetime()
-        except Exception:
-            return None
-
-    return None
-
-
 def make_stable_id(row):
     key = f"{row.get('date_header', '')}|{row.get('sport', '')}|{row.get('tournament', '')}|{row.get('matchup', '')}"
     digest = hashlib.md5(key.encode("utf-8")).hexdigest()
@@ -430,6 +399,20 @@ def _build_games_from_df(df: pd.DataFrame):
         raw_sport = rowd.get("sport")
         raw_sport = raw_sport.strip() if isinstance(raw_sport, str) else raw_sport
         sport = SPORT_MAP.get(raw_sport, raw_sport)
+        if not sport:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+        sport = sport or "Other"
 
         normalized_sport = sport.lower() if isinstance(sport, str) else ""
         needs_infer = (
@@ -457,10 +440,7 @@ def _build_games_from_df(df: pd.DataFrame):
         is_live = normalize_bool(rowd.get("is_live"))
 
         # Skip streams that started >6 hours ago
-        try:
-            start_dt = coerce_start_datetime(rowd)
-        except NameError:
-            start_dt = None
+        start_dt = coerce_start_datetime(rowd)
         if start_dt and start_dt < stale_cutoff:
             continue
 
@@ -957,9 +937,21 @@ def start_scheduler():
     atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
+def trigger_startup_scrape():
+    """Kick off a one-time scrape at startup without blocking boot."""
+
+    def _run():
+        print("[scheduler] Running initial scrape on startup...")
+        run_scraper_job()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 if ENABLE_SCRAPER_IN_WEB:
     # Only start in web if explicitly enabled via env var
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trigger_startup_scrape()
         start_scheduler()
 
 
