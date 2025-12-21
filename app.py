@@ -178,6 +178,16 @@ def coerce_start_datetime(rowd):
         except Exception:
             return None
 
+    # final fallback: date_header only (assume start at midnight UTC)
+    date_header = rowd.get("date_header")
+    if isinstance(date_header, str) and date_header.strip():
+        try:
+            dt = pd.to_datetime(date_header, utc=True, errors="coerce")
+            if isinstance(dt, pd.Timestamp) and not pd.isna(dt):
+                return dt.to_pydatetime()
+        except Exception:
+            return None
+
     return None
 
 
@@ -416,6 +426,7 @@ def _build_games_from_df(df: pd.DataFrame):
     games = []
     now_utc = datetime.now(timezone.utc)
     stale_cutoff = now_utc - timedelta(hours=6)
+    live_window_after_start = timedelta(hours=5)  # typical game length coverage
 
     # Iterate rows once, parse streams once
     for _, row in df.iterrows():
@@ -491,7 +502,42 @@ def _build_games_from_df(df: pd.DataFrame):
 
         sport = sport or "Sports"
 
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
+
+        # Determine start time once for both filtering and live inference
+        start_dt = coerce_start_datetime(rowd)
+
+        # Skip streams that started >6 hours ago (based on best-effort timestamp)
+        if start_dt and start_dt < stale_cutoff:
+            continue
+
+        # Base live flag from data
         is_live = normalize_bool(rowd.get("is_live"))
+        if not is_live and start_dt:
+            # Auto-mark live if we're within a reasonable window of the start
+            if (start_dt - timedelta(minutes=15)) <= now_utc <= (start_dt + live_window_after_start):
+                is_live = True
 
         # Skip streams that started >6 hours ago
         start_dt = coerce_start_datetime(rowd)
