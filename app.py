@@ -328,6 +328,50 @@ SPORT_MAP = {
     "NBA": "Basketball",
 }
 
+SPORT_KEYWORD_MAP = [
+    ("nba", "Basketball"),
+    ("basketball", "Basketball"),
+    ("wnba", "Basketball"),
+    ("ncaa basketball", "Basketball"),
+    ("college basketball", "Basketball"),
+    ("nfl", "NFL"),
+    ("american football", "NFL"),
+    ("ncaa football", "College Football"),
+    ("college football", "College Football"),
+    ("mlb", "MLB"),
+    ("baseball", "MLB"),
+    ("nhl", "Ice Hockey"),
+    ("hockey", "Ice Hockey"),
+    ("soccer", "Soccer"),
+    ("mls", "Soccer"),
+    ("premier league", "Soccer"),
+    ("la liga", "Soccer"),
+    ("bundesliga", "Soccer"),
+    ("serie a", "Soccer"),
+    ("ligue 1", "Soccer"),
+    ("champions league", "Soccer"),
+    ("uefa", "Soccer"),
+    ("ucl", "Soccer"),
+    ("ufc", "MMA"),
+    ("mma", "MMA"),
+    ("bellator", "MMA"),
+    ("boxing", "Boxing"),
+    ("formula 1", "Motorsport"),
+    ("formula1", "Motorsport"),
+    ("f1", "Motorsport"),
+    ("f2", "Motorsport"),
+    ("nascar", "Motorsport"),
+    ("motogp", "Motorsport"),
+    ("tennis", "Tennis"),
+    ("atp", "Tennis"),
+    ("wta", "Tennis"),
+    ("golf", "Golf"),
+    ("pga", "Golf"),
+    ("lpga", "Golf"),
+    ("cricket", "Cricket"),
+    ("rugby", "Rugby"),
+]
+
 
 def _build_games_from_df(df: pd.DataFrame):
     if df is None or df.empty:
@@ -339,6 +383,8 @@ def _build_games_from_df(df: pd.DataFrame):
             df[col] = ""
 
     games = []
+    now_utc = datetime.now(timezone.utc)
+    stale_cutoff = now_utc - timedelta(hours=6)
 
     # Iterate rows once, parse streams once
     for _, row in df.iterrows():
@@ -353,8 +399,27 @@ def _build_games_from_df(df: pd.DataFrame):
         raw_sport = rowd.get("sport")
         raw_sport = raw_sport.strip() if isinstance(raw_sport, str) else raw_sport
         sport = SPORT_MAP.get(raw_sport, raw_sport)
+        if not sport:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+        sport = sport or "Other"
 
         is_live = normalize_bool(rowd.get("is_live"))
+
+        # Skip streams that started >6 hours ago
+        start_dt = coerce_start_datetime(rowd)
+        if start_dt and start_dt < stale_cutoff:
+            continue
 
         # format time once
         time_display = None
