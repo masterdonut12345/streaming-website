@@ -1011,6 +1011,31 @@ def api_games_upsert():
     return jsonify({"ok": True, "results": upserted})
 
 
+@app.route("/api/games/clear_streams", methods=["POST"])
+def api_games_clear_streams():
+    """Clear all stream/embed data to force a full reload via the scraper."""
+    if not require_admin():
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    df, fh = read_csv_locked_for_write()
+    for c in CSV_COLS:
+        if c not in df.columns:
+            df[c] = ""
+
+    if not df.empty:
+        df["streams"] = ""
+        df["embed_url"] = ""
+
+    write_csv_locked(df[CSV_COLS], fh)
+
+    # bust cache so next request reloads from disk
+    with GAMES_CACHE_LOCK:
+        GAMES_CACHE["ts"] = 0
+        GAMES_CACHE["mtime"] = 0
+
+    return jsonify({"ok": True, "rows": int(len(df))})
+
+
 # ====================== ROUTES ======================
 def _absolute_url(path: str) -> str:
     return urljoin(request.url_root, path.lstrip("/"))
