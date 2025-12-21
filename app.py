@@ -500,6 +500,12 @@ def _build_games_from_df(df: pd.DataFrame):
             or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
         )
 
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
         if needs_infer:
             # infer from other fields to avoid "unknown" buckets
             haystack_parts = [
