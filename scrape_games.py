@@ -292,7 +292,17 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
     except Exception:
         return []
 
-    return _dedup_streams(streams)
+    deduped = _dedup_streams(streams)
+
+    # Renumber plain "Stream" labels to Stream 1, Stream 2, ...
+    counter = 1
+    for s in deduped:
+        lbl = (s.get("label") or "").strip()
+        if lbl.lower() == "stream":
+            s["label"] = f"Stream {counter}"
+            counter += 1
+
+    return deduped
 
 
 def scrape_sport71() -> pd.DataFrame:
