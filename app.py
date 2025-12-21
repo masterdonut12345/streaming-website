@@ -541,6 +541,47 @@ def _build_games_from_df(df: pd.DataFrame):
         if start_dt and start_dt < stale_cutoff:
             continue
 
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+            # If still empty, try a broader heuristic: sport code in URL path segments
+            if not sport and "/" in haystack:
+                parts = [p for p in haystack.replace("-", " ").split("/") if p]
+                for keyword, mapped in SPORT_KEYWORD_MAP:
+                    if any(keyword in p for p in parts):
+                        sport = mapped
+                        break
+
+        # Normalize and drop entries we still can't classify
+        sport = normalize_sport_name(sport or "")
+        if sport.lower() in ("other", "unknown", "nan", "n/a", "none", "null", ""):
+            # Skip unclassified games to avoid "unknown" buckets entirely
+            continue
+
+        # Determine start time once for both filtering and live inference
+        start_dt = coerce_start_datetime(rowd)
+
+        # Skip streams that started >6 hours ago (based on best-effort timestamp)
+        if start_dt and start_dt < stale_cutoff:
+            continue
+
         # Base live flag from data
         is_live = normalize_bool(rowd.get("is_live"))
         if not is_live and start_dt:
