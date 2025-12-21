@@ -154,6 +154,14 @@ def _looks_like_chat(url: str) -> bool:
     return "chat" in low or any(marker in low for marker in _CHAT_MARKERS)
 
 
+def _is_probable_stream_url(url: str) -> bool:
+    if not url:
+        return False
+    u = url.lower()
+    keywords = ("topembed", "/channel/", "embed", "player", "m3u8", "hls", "manifest", ".m3u8")
+    return any(k in u for k in keywords)
+
+
 def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
     streams = []
 
@@ -166,7 +174,7 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
         if not src:
             continue
         full = urljoin(base_url, src)
-        if _looks_like_chat(full):
+        if _looks_like_chat(full) or not _is_probable_stream_url(full):
             continue
         streams.append({
             "label": "Stream",
@@ -179,7 +187,7 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
     for script in soup.find_all("script"):
         text = script.string or script.text or ""
         for m in _IFRAME_RE.findall(text):
-            if ("embed" in m or "player" in m) and not _looks_like_chat(m):
+            if ("embed" in m or "player" in m) and not _looks_like_chat(m) and _is_probable_stream_url(m):
                 streams.append({
                     "label": "Stream",
                     "embed_url": urljoin(base_url, m),
@@ -187,7 +195,7 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
                     "origin": "scraped",
                 })
         for m in _EMBED_LIKE_RE.findall(text):
-            if not _looks_like_chat(m):
+            if not _looks_like_chat(m) and _is_probable_stream_url(m):
                 streams.append({
                     "label": "Stream",
                     "embed_url": urljoin(base_url, m),
@@ -202,7 +210,7 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
             if not val:
                 continue
             full = urljoin(base_url, val)
-            if _looks_like_chat(full):
+            if _looks_like_chat(full) or not _is_probable_stream_url(full):
                 continue
             if "embed" in full or "channel" in full or "player" in full or full.startswith("http"):
                 streams.append({
