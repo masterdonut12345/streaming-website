@@ -215,6 +215,66 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
     return streams
 
 
+def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
+    streams: list[dict] = []
+    try:
+        r = session.get(watch_url, timeout=REQUEST_TIMEOUT)
+        if r.status_code != 200:
+            return []
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # embeds directly on the main watch page
+        streams.extend(_collect_embeds_from_html(watch_url, soup))
+
+        # dedicated stream selector buttons (e.g., ?id=...&stream=2)
+        btn_links = []
+        for btn in soup.select("a.stream-button"):
+            label = (btn.get_text(strip=True) or "Stream")[:64] or "Stream"
+            data_embed = btn.get("data-embed") or btn.get("data-src")
+            if data_embed:
+                full = urljoin(watch_url, data_embed)
+                if not _looks_like_chat(full):
+                    streams.append({
+                        "label": label,
+                        "embed_url": full,
+                        "watch_url": watch_url,
+                        "origin": "scraped",
+                    })
+            href = btn.get("href")
+            if href and not href.startswith("#"):
+                full_link = urljoin(watch_url, href)
+                if full_link != watch_url:
+                    btn_links.append((label, full_link))
+
+        # Deduplicate links while preserving order
+        seen_links = set()
+        dedup_links = []
+        for label, link in btn_links:
+            if link in seen_links:
+                continue
+            seen_links.add(link)
+            dedup_links.append((label, link))
+
+        # Fetch linked stream pages and collect embeds
+        for label, link in dedup_links[:MAX_EXTRA_LINKS]:
+            try:
+                r2 = session.get(link, timeout=REQUEST_TIMEOUT)
+                if r2.status_code != 200:
+                    continue
+                soup2 = BeautifulSoup(r2.text, "html.parser")
+                sub_streams = _collect_embeds_from_html(link, soup2)
+                for s in sub_streams:
+                    s["label"] = s.get("label") or label or "Stream"
+                    s["watch_url"] = link
+                streams.extend(sub_streams)
+            except Exception:
+                continue
+    except Exception:
+        return []
+
+    return _dedup_streams(streams)
+
+
 def scrape_sport71() -> pd.DataFrame:
     session = _get_session()
     r = session.get(BASE_URL_SPORT71, timeout=REQUEST_TIMEOUT)
@@ -274,77 +334,7 @@ def scrape_sport71() -> pd.DataFrame:
     streams_map = {}
 
     for w in df["watch_url"]:
-        streams = []
-        try:
-            r = session.get(w, timeout=REQUEST_TIMEOUT)
-            if r.status_code != 200:
-                streams_map[w] = []
-                continue
-            soup = BeautifulSoup(r.text, "html.parser")
-
-            # Collect embeds on the main game page
-            streams.extend(_collect_embeds_from_html(w, soup))
-
-            # Follow additional stream links shown under/near the embed (Sport7 stream selectors)
-            extra_links = []
-            for a in soup.find_all("a"):
-                text_raw = (a.get_text(strip=True) or "")
-                text = text_raw.lower()
-                aria = (a.get("aria-label") or "").lower()
-                classes = " ".join(a.get("class") or [])
-                attrs = [a.get(attr) for attr in ("href", "data-embed", "data-href", "data-src")]
-                for val in attrs:
-                    if not val:
-                        continue
-                    full = urljoin(w, val)
-                    if _looks_like_chat(full):
-                        continue
-                    # Direct embed URLs (rare)
-                    if "topembed" in full or "embed" in full or "channel" in full or "player" in full:
-                        streams.append({
-                            "label": (text_raw or "Stream")[:64] or "Stream",
-                            "embed_url": full,
-                            "watch_url": w,
-                            "origin": "scraped",
-                        })
-                        continue
-                    same_site = BASE_URL_SPORT71.split("://")[-1] in full or "sport7" in full
-                    is_stream_button = (
-                        "stream-button" in classes
-                        or "select stream" in aria
-                        or "stream=" in full
-                    )
-                    label_hint = ("stream" in text or "link" in text or "channel" in text or "sport7" in text)
-                    if same_site and is_stream_button:
-                        if full != w:
-                            extra_links.append(full)
-                    elif same_site and label_hint and full != w:
-                        extra_links.append(full)
-
-            # Deduplicate links before fetching
-            seen_link = set()
-            dedup_links = []
-            for link in extra_links:
-                if link in seen_link:
-                    continue
-                seen_link.add(link)
-                dedup_links.append(link)
-
-            # Fetch each linked stream page and extract embeds
-            for link in dedup_links[:MAX_EXTRA_LINKS]:
-                try:
-                    r2 = session.get(link, timeout=REQUEST_TIMEOUT)
-                    if r2.status_code != 200:
-                        continue
-                    soup2 = BeautifulSoup(r2.text, "html.parser")
-                    streams.extend(_collect_embeds_from_html(link, soup2))
-                except Exception:
-                    continue
-
-        except Exception:
-            pass
-
-        streams_map[w] = _dedup_streams(streams)
+        streams_map[w] = _fetch_sport71_streams(w, session)
 
     df["streams"] = df["watch_url"].map(lambda w: streams_map.get(w, []))
     df["embed_url"] = df["streams"].map(lambda s: s[0]["embed_url"] if s else None)
