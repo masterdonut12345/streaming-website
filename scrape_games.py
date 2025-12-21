@@ -131,14 +131,15 @@ def _should_keep_existing(row: dict) -> bool:
 # ---------------- SPORT71 ----------------
 
 _IFRAME_RE = re.compile(r'https?://[^\s"\']+')
-_CHAT_MARKERS = ("text-chat", "/chat", "chat_room", "chatroom")
+_EMBED_LIKE_RE = re.compile(r"https?://[^\s\"']*(?:embed|player|channel|topembed|m3u8)[^\s\"']*", re.I)
+_CHAT_MARKERS = ("text-chat", "/chat", "chat_room", "chatroom", "chat.")
 
 
 def _looks_like_chat(url: str) -> bool:
     if not url:
         return False
     low = url.lower()
-    return any(marker in low for marker in _CHAT_MARKERS)
+    return "chat" in low or any(marker in low for marker in _CHAT_MARKERS)
 
 
 def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
@@ -161,12 +162,37 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
 
     # script-embedded URLs
     for script in soup.find_all("script"):
-        text = script.string or ""
+        text = script.string or script.text or ""
         for m in _IFRAME_RE.findall(text):
             if ("embed" in m or "player" in m) and not _looks_like_chat(m):
                 streams.append({
                     "label": "Stream",
                     "embed_url": urljoin(base_url, m),
+                    "watch_url": base_url,
+                    "origin": "scraped",
+                })
+        for m in _EMBED_LIKE_RE.findall(text):
+            if not _looks_like_chat(m):
+                streams.append({
+                    "label": "Stream",
+                    "embed_url": urljoin(base_url, m),
+                    "watch_url": base_url,
+                    "origin": "scraped",
+                })
+
+    # embeds exposed via data- attributes on buttons/links
+    for el in soup.find_all(["a", "button"]):
+        for attr in ("data-embed", "data-src", "data-url", "data-href", "href", "src"):
+            val = el.get(attr)
+            if not val:
+                continue
+            full = urljoin(base_url, val)
+            if _looks_like_chat(full):
+                continue
+            if "embed" in full or "channel" in full or "player" in full or full.startswith("http"):
+                streams.append({
+                    "label": (el.get_text(strip=True) or "Stream")[:64] or "Stream",
+                    "embed_url": full,
                     "watch_url": base_url,
                     "origin": "scraped",
                 })
@@ -243,29 +269,33 @@ def scrape_sport71() -> pd.DataFrame:
             # Collect embeds on the main game page
             streams.extend(_collect_embeds_from_html(w, soup))
 
-            # Follow additional stream links shown under the iframe (typically on sport71)
+            # Follow additional stream links shown under/near the embed (Sport7 stream selectors)
             extra_links = []
             for a in soup.find_all("a"):
-                href = a.get("href")
-                if not href or href.startswith("#"):
-                    continue
-                full = urljoin(w, href)
-                # Avoid looping back to the same page
-                if full == w:
-                    continue
-                # Heuristic: only follow links that look like stream choices
                 text = (a.get_text(strip=True) or "").lower()
-                if "stream" in text or "link" in text or "channel" in text:
-                    extra_links.append(full)
-
-            # Also check data-href/data-embed attributes
-            for a in soup.find_all("a"):
-                for attr in ("data-href", "data-embed"):
-                    val = a.get(attr)
-                    if val:
-                        full = urljoin(w, val)
+                attrs = [a.get(attr) for attr in ("href", "data-embed", "data-href", "data-src")]
+                for val in attrs:
+                    if not val:
+                        continue
+                    full = urljoin(w, val)
+                    if _looks_like_chat(full):
+                        continue
+                    # If the attribute itself is an embed URL, keep it directly
+                    if "topembed" in full or "embed" in full or "channel" in full or "player" in full:
+                        streams.append({
+                            "label": (a.get_text(strip=True) or "Stream")[:64] or "Stream",
+                            "embed_url": full,
+                            "watch_url": w,
+                            "origin": "scraped",
+                        })
+                        continue
+                    # Otherwise, decide whether to follow the link for more embeds
+                    same_site = BASE_URL_SPORT71.split("://")[-1] in full
+                    if same_site or "sport7" in full:
                         if full != w:
                             extra_links.append(full)
+                    elif "stream" in text or "link" in text or "channel" in text:
+                        extra_links.append(full)
 
             # Deduplicate links before fetching
             seen_link = set()
