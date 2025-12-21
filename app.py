@@ -374,7 +374,8 @@ def _dedup_stream_slug(slug: str, seen: set) -> str:
 # ====================== FAST GAME LOADER (CACHED) ======================
 SPORT_MAP = {
     "Football": "Soccer",
-    "American Football": "NFL",
+    "American Football": "American Football",
+    "NFL": "American Football",
     "NBA": "Basketball",
 }
 
@@ -384,8 +385,8 @@ SPORT_KEYWORD_MAP = [
     ("wnba", "Basketball"),
     ("ncaa basketball", "Basketball"),
     ("college basketball", "Basketball"),
-    ("nfl", "NFL"),
-    ("american football", "NFL"),
+    ("nfl", "American Football"),
+    ("american football", "American Football"),
     ("ncaa football", "College Football"),
     ("college football", "College Football"),
     ("mlb", "MLB"),

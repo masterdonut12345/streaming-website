@@ -19,7 +19,7 @@ import pandas as pd  # type: ignore
 import scrape_games
 
 
-BASE_SITE_URL = os.environ.get("STREAMDEN_BASE_URL", "https://thestreamden.onrender.com")
+BASE_SITE_URL = os.environ.get("STREAMDEN_BASE_URL", "https://thestreamden.com")
 CSV_FALLBACK_PATH = os.environ.get("STREAMDEN_CSV_PATH", "today_games_with_all_streams.csv")
 
 INVALID_SPORT_MARKERS = {"other", "unknown", "nan", "n/a", "none", "null", ""}
@@ -29,8 +29,8 @@ SPORT_KEYWORD_MAP = [
     ("wnba", "Basketball"),
     ("ncaa basketball", "Basketball"),
     ("college basketball", "Basketball"),
-    ("nfl", "NFL"),
-    ("american football", "NFL"),
+    ("nfl", "American Football"),
+    ("american football", "American Football"),
     ("ncaa football", "College Football"),
     ("college football", "College Football"),
     ("mlb", "MLB"),
@@ -224,6 +224,7 @@ def main():
             str(g.get("matchup") or ""),
         )
 
+    # Sort sports alphabetically, and games inside each sport by date/time
     for sport in sorted(by_sport.keys()):
         print(f"=== {sport} ===")
         for game in sorted(by_sport[sport], key=sort_key):
