@@ -31,6 +31,18 @@ import hashlib
 BASE_URL_SPORT71 = "https://sport7.pro"
 BASE_URL_SHARK   = "https://sharkstreams.net/"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StreamScraper/1.0)"}
+REQUEST_TIMEOUT = 8  # seconds
+MAX_EXTRA_LINKS = 4  # cap per-game follow-up fetches
+
+_SESSION = None
+
+
+def _get_session():
+    global _SESSION
+    if _SESSION is None:
+        _SESSION = requests.Session()
+        _SESSION.headers.update(HEADERS)
+    return _SESSION
 
 EST = pytz.timezone("US/Eastern")
 UTC = pytz.UTC
@@ -147,6 +159,9 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
 
     # direct iframes
     for iframe in soup.find_all("iframe"):
+        # Skip chat iframes explicitly housed in the chat container
+        if iframe.find_parent(id="chat-container") or "chat" in (iframe.get("id") or "").lower():
+            continue
         src = iframe.get("src") or iframe.get("data-src")
         if not src:
             continue
@@ -201,7 +216,8 @@ def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
 
 
 def scrape_sport71() -> pd.DataFrame:
-    r = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
+    session = _get_session()
+    r = session.get(BASE_URL_SPORT71, timeout=REQUEST_TIMEOUT)
     if r.status_code != 200:
         return pd.DataFrame()
 
@@ -260,7 +276,7 @@ def scrape_sport71() -> pd.DataFrame:
     for w in df["watch_url"]:
         streams = []
         try:
-            r = requests.get(w, headers=HEADERS, timeout=15)
+            r = session.get(w, timeout=REQUEST_TIMEOUT)
             if r.status_code != 200:
                 streams_map[w] = []
                 continue
@@ -307,9 +323,9 @@ def scrape_sport71() -> pd.DataFrame:
                 dedup_links.append(link)
 
             # Fetch each linked stream page and extract embeds
-            for link in dedup_links:
+            for link in dedup_links[:MAX_EXTRA_LINKS]:
                 try:
-                    r2 = requests.get(link, headers=HEADERS, timeout=15)
+                    r2 = session.get(link, timeout=REQUEST_TIMEOUT)
                     if r2.status_code != 200:
                         continue
                     soup2 = BeautifulSoup(r2.text, "html.parser")
@@ -329,12 +345,13 @@ def scrape_sport71() -> pd.DataFrame:
 
 # ---------------- SHARKSTREAMS ----------------
 
-_OPENEMBED_RE = re.compile(r"openEmbed\(\s*'([^']+)'\s*\)", re.I)
-_WINDOWOPEN_RE = re.compile(r"window\.open\(\s*'([^']+)'\s*,", re.I)
+_OPENEMBED_RE = re.compile(r"openEmbed\(\s*[\"']([^\"']+)[\"']\s*\)", re.I)
+_WINDOWOPEN_RE = re.compile(r"window\.open\(\s*[\"']([^\"']+)[\"']\s*,", re.I)
 _HREF_URL_RE = re.compile(r"https?://[^\\s\"']+", re.I)
 
 def scrape_shark() -> pd.DataFrame:
-    r = requests.get(BASE_URL_SHARK, headers=HEADERS, timeout=15)
+    session = _get_session()
+    r = session.get(BASE_URL_SHARK, timeout=REQUEST_TIMEOUT)
     if r.status_code != 200:
         return pd.DataFrame()
 
@@ -361,8 +378,13 @@ def scrape_shark() -> pd.DataFrame:
             m = _OPENEMBED_RE.search(onclick) or _WINDOWOPEN_RE.search(onclick)
             if m:
                 embed_urls.append(urljoin(BASE_URL_SHARK, m.group(1)))
-            for attr in ("data-href", "data-embed", "href"):
+            for attr in ("data-href", "data-embed", "data-url", "href"):
                 href = a.get(attr)
+                if href and href != "#":
+                    embed_urls.append(urljoin(BASE_URL_SHARK, href))
+            text = (a.get_text(strip=True) or "").lower()
+            if text in ("watch", "embed") or "watch" in text or "embed" in text:
+                href = a.get("href")
                 if href and href != "#":
                     embed_urls.append(urljoin(BASE_URL_SHARK, href))
 
@@ -375,7 +397,7 @@ def scrape_shark() -> pd.DataFrame:
                 embed_urls.append(urljoin(BASE_URL_SHARK, m.group(1)))
             for m in _HREF_URL_RE.finditer(text):
                 maybe = m.group(0)
-                if "embed" in maybe or "player" in maybe:
+                if "embed" in maybe or "player" in maybe or "watch" in maybe:
                     embed_urls.append(urljoin(BASE_URL_SHARK, maybe))
 
         # Normalize and deduplicate
