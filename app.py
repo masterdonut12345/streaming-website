@@ -150,6 +150,15 @@ def normalize_sport_name(value):
         return "Other"
 
 
+INVALID_SPORT_MARKERS = {"other", "unknown", "nan", "n/a", "none", "null", ""}
+
+
+def sport_is_invalid(value) -> bool:
+    """Return True when the sport should be treated as unclassified."""
+    normalized = normalize_sport_name(value)
+    return normalized.lower() in INVALID_SPORT_MARKERS
+
+
 def coerce_start_datetime(rowd):
     """
     Try to produce a timezone-aware UTC datetime from available fields.
@@ -485,23 +494,6 @@ def _build_games_from_df(df: pd.DataFrame):
             or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
         )
 
-        if needs_infer:
-            # infer from other fields to avoid "unknown" buckets
-            haystack_parts = [
-                rowd.get("sport", ""),
-                rowd.get("tournament", ""),
-                rowd.get("matchup", ""),
-                rowd.get("watch_url", ""),
-                rowd.get("source", ""),
-            ]
-            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
-            for keyword, mapped in SPORT_KEYWORD_MAP:
-                if keyword in haystack:
-                    sport = mapped
-                    break
-
-        sport = sport or "Sports"
-
         normalized_sport = sport.lower() if isinstance(sport, str) else ""
         needs_infer = (
             not normalized_sport
@@ -522,8 +514,19 @@ def _build_games_from_df(df: pd.DataFrame):
                 if keyword in haystack:
                     sport = mapped
                     break
+            # If still empty, try a broader heuristic: sport code in URL path segments
+            if not sport and "/" in haystack:
+                parts = [p for p in haystack.replace("-", " ").split("/") if p]
+                for keyword, mapped in SPORT_KEYWORD_MAP:
+                    if any(keyword in p for p in parts):
+                        sport = mapped
+                        break
 
-        sport = sport or "Sports"
+        # Normalize and drop entries we still can't classify
+        sport = normalize_sport_name(sport or "")
+        if sport.lower() in ("other", "unknown", "nan", "n/a", "none", "null", ""):
+            # Skip unclassified games to avoid "unknown" buckets entirely
+            continue
 
         # Determine start time once for both filtering and live inference
         start_dt = coerce_start_datetime(rowd)
@@ -538,11 +541,6 @@ def _build_games_from_df(df: pd.DataFrame):
             # Auto-mark live if we're within a reasonable window of the start
             if (start_dt - timedelta(minutes=15)) <= now_utc <= (start_dt + live_window_after_start):
                 is_live = True
-
-        # Skip streams that started >6 hours ago
-        start_dt = coerce_start_datetime(rowd)
-        if start_dt and start_dt < stale_cutoff:
-            continue
 
         # format time once
         time_display = None
@@ -602,7 +600,12 @@ def load_games_cached():
             and (mtime == GAMES_CACHE["mtime"])
         )
         if cache_ok:
-            return GAMES_CACHE["games"]
+            cached_games = GAMES_CACHE["games"]
+            # If cached data still contains invalid sports, force a refresh
+            if any(sport_is_invalid(g.get("sport")) for g in cached_games):
+                cache_ok = False
+            else:
+                return cached_games
 
     # Refresh outside lock (avoid blocking concurrent requests)
     df = _read_csv_shared_locked(DATA_PATH)
@@ -936,6 +939,8 @@ def index():
     sections_by_sport = {}
     for g in games:
         sport = normalize_sport_name(g.get("sport"))
+        if sport_is_invalid(sport):
+            continue
         sections_by_sport.setdefault(sport, []).append(g)
 
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
