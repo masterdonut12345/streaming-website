@@ -441,6 +441,20 @@ def _build_games_from_df(df: pd.DataFrame):
         raw_sport = rowd.get("sport")
         raw_sport = raw_sport.strip() if isinstance(raw_sport, str) else raw_sport
         sport = SPORT_MAP.get(raw_sport, raw_sport)
+        if not sport:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+        sport = sport or "Other"
 
         normalized_sport = sport.lower() if isinstance(sport, str) else ""
         needs_infer = (
@@ -462,19 +476,54 @@ def _build_games_from_df(df: pd.DataFrame):
                 if keyword in haystack:
                     sport = mapped
                     break
-            # If still empty, try a broader heuristic: sport code in URL path segments
-            if not sport and "/" in haystack:
-                parts = [p for p in haystack.replace("-", " ").split("/") if p]
-                for keyword, mapped in SPORT_KEYWORD_MAP:
-                    if any(keyword in p for p in parts):
-                        sport = mapped
-                        break
 
-        # Normalize and drop entries we still can't classify
-        sport = normalize_sport_name(sport or "")
-        if sport.lower() in ("other", "unknown", "nan", "n/a", "none", "null", ""):
-            # Skip unclassified games to avoid "unknown" buckets entirely
-            continue
+        sport = sport or "Sports"
+
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
+
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
 
         # Determine start time once for both filtering and live inference
         start_dt = coerce_start_datetime(rowd)
@@ -489,6 +538,11 @@ def _build_games_from_df(df: pd.DataFrame):
             # Auto-mark live if we're within a reasonable window of the start
             if (start_dt - timedelta(minutes=15)) <= now_utc <= (start_dt + live_window_after_start):
                 is_live = True
+
+        # Skip streams that started >6 hours ago
+        start_dt = coerce_start_datetime(rowd)
+        if start_dt and start_dt < stale_cutoff:
+            continue
 
         # format time once
         time_display = None
@@ -983,9 +1037,21 @@ def start_scheduler():
     atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
+def trigger_startup_scrape():
+    """Kick off a one-time scrape at startup without blocking boot."""
+
+    def _run():
+        print("[scheduler] Running initial scrape on startup...")
+        run_scraper_job()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 if ENABLE_SCRAPER_IN_WEB:
     # Only start in web if explicitly enabled via env var
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trigger_startup_scrape()
         start_scheduler()
 
 
