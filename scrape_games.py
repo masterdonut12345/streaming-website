@@ -4,7 +4,7 @@ scrape_games.py
 
 FAST + SAFE scraper for:
   - sport7.pro (Sport71): today + tomorrow, ALL embeds
-  - sharkstreams.net: today + tomorrow, 1 embed per game
+  - sharkstreams.net: today + next 7 days, 1 embed per game
 
 Guarantees:
   - Manual streams preserved
@@ -89,9 +89,16 @@ def _is_manual(st):
     # Treat missing/unknown origin as manual so scraper refreshes don't wipe user-added streams
     return origin != "scraped"
 
-def _today_or_tomorrow(dt):
-    now = datetime.now(EST).date()
-    return dt.date() in (now, now + timedelta(days=1))
+def _within_days(dt, *, days_ahead: int = 1, days_behind: int = 0) -> bool:
+    """
+    Return True when dt is within [today - days_behind, today + days_ahead] in EST.
+    """
+    try:
+        today = datetime.now(EST).date()
+        delta_days = (dt.date() - today).days
+        return -days_behind <= delta_days <= days_ahead
+    except Exception:
+        return False
 
 def _normalize_bool(v):
     if isinstance(v, bool):
@@ -333,7 +340,7 @@ def scrape_sport71() -> pd.DataFrame:
         except Exception:
             continue
 
-        if not _today_or_tomorrow(event_dt):
+        if not _within_days(event_dt, days_ahead=1):
             continue
 
         watch_a = tds[2].find("a", class_="watch-button")
@@ -389,6 +396,7 @@ def scrape_shark() -> pd.DataFrame:
     for div in soup.find_all("div", class_="row"):
         date_span = div.find("span", class_="ch-date")
         name_span = div.find("span", class_="ch-name")
+        cat_span = div.find("span", class_="ch-category")
         if not (date_span and name_span):
             continue
 
@@ -397,7 +405,7 @@ def scrape_shark() -> pd.DataFrame:
         except Exception:
             continue
 
-        if not _today_or_tomorrow(dt):
+        if not _within_days(dt, days_ahead=7):
             continue
 
         embed_urls = []
@@ -452,7 +460,7 @@ def scrape_shark() -> pd.DataFrame:
         rows.append({
             "source": "sharkstreams",
             "date_header": dt.strftime("%A, %B %d, %Y"),
-            "sport": None,
+            "sport": cat_span.get_text(strip=True) if cat_span else "Other",
             "time_unix": int(dt.timestamp() * 1000),
             "time": dt,
             "tournament": None,
