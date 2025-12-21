@@ -835,9 +835,21 @@ def start_scheduler():
     atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
+def trigger_startup_scrape():
+    """Kick off a one-time scrape at startup without blocking boot."""
+
+    def _run():
+        print("[scheduler] Running initial scrape on startup...")
+        run_scraper_job()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 if ENABLE_SCRAPER_IN_WEB:
     # Only start in web if explicitly enabled via env var
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trigger_startup_scrape()
         start_scheduler()
 
 
