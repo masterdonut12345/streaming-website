@@ -141,6 +141,39 @@ def _looks_like_chat(url: str) -> bool:
     return any(marker in low for marker in _CHAT_MARKERS)
 
 
+def _collect_embeds_from_html(base_url: str, soup: BeautifulSoup) -> list[dict]:
+    streams = []
+
+    # direct iframes
+    for iframe in soup.find_all("iframe"):
+        src = iframe.get("src") or iframe.get("data-src")
+        if not src:
+            continue
+        full = urljoin(base_url, src)
+        if _looks_like_chat(full):
+            continue
+        streams.append({
+            "label": "Stream",
+            "embed_url": full,
+            "watch_url": base_url,
+            "origin": "scraped",
+        })
+
+    # script-embedded URLs
+    for script in soup.find_all("script"):
+        text = script.string or ""
+        for m in _IFRAME_RE.findall(text):
+            if ("embed" in m or "player" in m) and not _looks_like_chat(m):
+                streams.append({
+                    "label": "Stream",
+                    "embed_url": urljoin(base_url, m),
+                    "watch_url": base_url,
+                    "origin": "scraped",
+                })
+
+    return streams
+
+
 def scrape_sport71() -> pd.DataFrame:
     r = requests.get(BASE_URL_SPORT71, headers=HEADERS, timeout=15)
     if r.status_code != 200:
@@ -195,7 +228,7 @@ def scrape_sport71() -> pd.DataFrame:
     if df.empty:
         return df
 
-    # Fetch embeds (ONE request per game)
+    # Fetch embeds (main page + per-stream links)
     streams_map = {}
 
     for w in df["watch_url"]:
@@ -203,32 +236,56 @@ def scrape_sport71() -> pd.DataFrame:
         try:
             r = requests.get(w, headers=HEADERS, timeout=15)
             if r.status_code != 200:
+                streams_map[w] = []
                 continue
             soup = BeautifulSoup(r.text, "html.parser")
 
-            for iframe in soup.find_all("iframe"):
-                src = iframe.get("src") or iframe.get("data-src")
-                if src:
-                    full = urljoin(w, src)
-                    if _looks_like_chat(full):
-                        continue
-                    streams.append({
-                        "label": "Stream",
-                        "embed_url": full,
-                        "watch_url": w,
-                        "origin": "scraped",
-                    })
+            # Collect embeds on the main game page
+            streams.extend(_collect_embeds_from_html(w, soup))
 
-            for script in soup.find_all("script"):
-                text = script.string or ""
-                for m in _IFRAME_RE.findall(text):
-                    if ("embed" in m or "player" in m) and not _looks_like_chat(m):
-                        streams.append({
-                            "label": "Stream",
-                            "embed_url": m,
-                            "watch_url": w,
-                            "origin": "scraped",
-                        })
+            # Follow additional stream links shown under the iframe (typically on sport71)
+            extra_links = []
+            for a in soup.find_all("a"):
+                href = a.get("href")
+                if not href or href.startswith("#"):
+                    continue
+                full = urljoin(w, href)
+                # Avoid looping back to the same page
+                if full == w:
+                    continue
+                # Heuristic: only follow links that look like stream choices
+                text = (a.get_text(strip=True) or "").lower()
+                if "stream" in text or "link" in text or "channel" in text:
+                    extra_links.append(full)
+
+            # Also check data-href/data-embed attributes
+            for a in soup.find_all("a"):
+                for attr in ("data-href", "data-embed"):
+                    val = a.get(attr)
+                    if val:
+                        full = urljoin(w, val)
+                        if full != w:
+                            extra_links.append(full)
+
+            # Deduplicate links before fetching
+            seen_link = set()
+            dedup_links = []
+            for link in extra_links:
+                if link in seen_link:
+                    continue
+                seen_link.add(link)
+                dedup_links.append(link)
+
+            # Fetch each linked stream page and extract embeds
+            for link in dedup_links:
+                try:
+                    r2 = requests.get(link, headers=HEADERS, timeout=15)
+                    if r2.status_code != 200:
+                        continue
+                    soup2 = BeautifulSoup(r2.text, "html.parser")
+                    streams.extend(_collect_embeds_from_html(link, soup2))
+                except Exception:
+                    continue
 
         except Exception:
             pass
