@@ -414,6 +414,29 @@ def _build_games_from_df(df: pd.DataFrame):
                     break
         sport = sport or "Other"
 
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
+
         is_live = normalize_bool(rowd.get("is_live"))
 
         # Skip streams that started >6 hours ago
