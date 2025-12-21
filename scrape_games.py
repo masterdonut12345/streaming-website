@@ -228,7 +228,8 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
 
         # dedicated stream selector buttons (e.g., ?id=...&stream=2)
         btn_links = []
-        for btn in soup.select("a.stream-button"):
+        picker_scope = soup.select("div.stream-picker a.stream-button") or soup.select("a.stream-button")
+        for btn in picker_scope:
             label = (btn.get_text(strip=True) or "Stream")[:64] or "Stream"
             data_embed = btn.get("data-embed") or btn.get("data-src")
             if data_embed:
@@ -241,9 +242,13 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
                         "origin": "scraped",
                     })
             href = btn.get("href")
-            if href and not href.startswith("#"):
+            aria = (btn.get("aria-label") or "").lower()
+            href_ok = href and not href.startswith("#") and "stream=" in href
+            aria_hint = "select stream" in aria or "stream" in aria
+            if href_ok or aria_hint:
                 full_link = urljoin(watch_url, href)
-                if full_link != watch_url:
+                # Only follow links on the same site that look like stream selectors
+                if full_link.startswith(BASE_URL_SPORT71) and full_link != watch_url:
                     btn_links.append((label, full_link))
 
         # Deduplicate links while preserving order
@@ -263,6 +268,9 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
                     continue
                 soup2 = BeautifulSoup(r2.text, "html.parser")
                 sub_streams = _collect_embeds_from_html(link, soup2)
+                if not sub_streams:
+                    # If the page has no iframes, ignore it (likely nav like Home/Donate)
+                    continue
                 for s in sub_streams:
                     s["label"] = s.get("label") or label or "Stream"
                     s["watch_url"] = link
