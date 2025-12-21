@@ -8,7 +8,7 @@ import os
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import hashlib
 import re
@@ -70,7 +70,7 @@ def mark_active():
     if not ENABLE_VIEWER_TRACKING:
         return
     sid = get_session_id()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     ACTIVE_VIEWERS[sid] = now
 
     cutoff = now - timedelta(seconds=45)
@@ -88,7 +88,7 @@ def heartbeat():
         return jsonify({"ok": True, "disabled": True})
 
     sid = get_session_id()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     data = request.get_json(silent=True) or {}
     path = data.get("path") or request.path
@@ -134,6 +134,20 @@ SLUG_MULTI_DASH = re.compile(r"-{2,}")
 
 def safe_lower(value):
     return value.lower() if isinstance(value, str) else ""
+
+
+def normalize_sport_name(value):
+    """
+    Normalize sport values so grouping/sorting never mixes types.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+        return value or "Other"
+    try:
+        text = str(value).strip()
+        return text or "Other"
+    except Exception:
+        return "Other"
 
 
 def make_stable_id(row):
@@ -419,7 +433,7 @@ def get_game_view_counts(cutoff_seconds=45):
     if not ENABLE_VIEWER_TRACKING:
         return {}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(seconds=cutoff_seconds)
     counts = {}
 
@@ -733,11 +747,11 @@ def index():
 
     sections_by_sport = {}
     for g in games:
-        sport = g.get("sport") or "Other"
+        sport = normalize_sport_name(g.get("sport"))
         sections_by_sport.setdefault(sport, []).append(g)
 
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
-    sections.sort(key=lambda s: s["sport"])
+    sections.sort(key=lambda s: normalize_sport_name(s["sport"]).lower())
 
     most_viewed_games = get_most_viewed_games(all_games, limit=5)
 
