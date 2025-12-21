@@ -450,6 +450,49 @@ def _build_games_from_df(df: pd.DataFrame):
         raw_sport = rowd.get("sport")
         raw_sport = raw_sport.strip() if isinstance(raw_sport, str) else raw_sport
         sport = SPORT_MAP.get(raw_sport, raw_sport)
+        if not sport:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+        sport = sport or "Other"
+
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+
+        sport = sport or "Sports"
+
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
 
         normalized_sport = sport.lower() if isinstance(sport, str) else ""
         needs_infer = (
@@ -999,9 +1042,21 @@ def start_scheduler():
     atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
+def trigger_startup_scrape():
+    """Kick off a one-time scrape at startup without blocking boot."""
+
+    def _run():
+        print("[scheduler] Running initial scrape on startup...")
+        run_scraper_job()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 if ENABLE_SCRAPER_IN_WEB:
     # Only start in web if explicitly enabled via env var
     if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        trigger_startup_scrape()
         start_scheduler()
 
 
