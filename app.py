@@ -474,6 +474,7 @@ def _build_games_from_df(df: pd.DataFrame):
             df[col] = ""
 
     games = []
+    dedup_map = {}
     now_utc = datetime.now(timezone.utc)
     stale_cutoff = now_utc - timedelta(hours=6)
     live_window_after_start = timedelta(hours=5)  # typical game length coverage
@@ -655,6 +656,31 @@ def _build_games_from_df(df: pd.DataFrame):
             "is_live": is_live,
         }
 
+        dedup_key = (
+            normalize_sport_name(sport).lower(),
+            slugify(game_obj.get("matchup") or ""),
+            str(rowd.get("date_header") or "").strip().lower(),
+            str(int(start_dt.timestamp())) if start_dt else str(rowd.get("time_unix") or "").strip(),
+        )
+
+        existing = dedup_map.get(dedup_key)
+        if existing:
+            existing["streams"] = merge_streams(existing.get("streams"), game_obj.get("streams"))
+            existing["is_live"] = existing.get("is_live") or game_obj.get("is_live")
+            if not existing.get("watch_url") and game_obj.get("watch_url"):
+                existing["watch_url"] = game_obj["watch_url"]
+            if not existing.get("tournament_url") and game_obj.get("tournament_url"):
+                existing["tournament_url"] = game_obj["tournament_url"]
+            if not existing.get("time") and game_obj.get("time"):
+                existing["time"] = game_obj["time"]
+            if not existing.get("time_unix") and game_obj.get("time_unix"):
+                existing["time_unix"] = game_obj["time_unix"]
+            existing["id"] = existing.get("id") or game_obj.get("id")
+            continue
+
+        dedup_map[dedup_key] = game_obj
+
+    for game_obj in dedup_map.values():
         game_obj["slug"] = game_slug(game_obj)
 
         # attach stream slugs
