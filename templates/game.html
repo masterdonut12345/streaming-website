@@ -68,6 +68,40 @@
             text-shadow: 0 0 8px rgba(122, 162, 255, 0.4);
         }
 
+        .live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 77, 106, 0.6);
+            background: rgba(255, 77, 106, 0.14);
+            color: #ffeef2;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 0.74rem;
+            font-weight: 700;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+            cursor: default;
+        }
+
+        .live-pill::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            background: #ff4d6a;
+            box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6);
+            animation: livePulse 1.6s ease-out infinite;
+        }
+
+        @keyframes livePulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6); }
+            100% { box-shadow: 0 0 0 10px rgba(255, 77, 106, 0); }
+        }
+
         .back-link {
             margin-bottom: 12px;
             font-size: 0.9rem;
@@ -113,16 +147,24 @@
         }
 
         h1 {
-            margin: 0 0 4px 0;
+            margin: 0;
             font-size: 2.0rem;
             letter-spacing: 0.02em;
         }
 
         h2 {
-            margin: 0 0 10px 0;
+            margin: 6px 0 10px 0;
             font-size: 1.1rem;
             font-weight: 500;
             color: var(--muted);
+        }
+
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 0 0 6px;
         }
 
         .meta {
@@ -159,21 +201,15 @@
             background: rgba(122, 162, 255, 0.14);
         }
 
-        /* Support note */
-        .support-note {
-            margin-top: 8px;
-            padding: 8px 10px;
-            border-radius: 12px;
-            border: 1px solid rgba(122, 162, 255, 0.18);
-            background: rgba(5, 5, 12, 0.55);
+        .support-note-floating {
+            margin-top: 12px;
+            display: flex;
+            justify-content: flex-end;
+            font-size: 0.82rem;
             color: var(--muted);
-            font-size: 0.85rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
         }
-        .support-note a { font-weight: 600; }
+        .support-note-floating a { font-weight: 600; color: var(--accent); }
+        .support-note-floating a:hover { color: #a4bcff; }
 
         .meta-chips {
             margin-top: 8px;
@@ -458,6 +494,23 @@
             z-index: 2500;
         }
 
+        .left-rail-ad {
+            position: fixed;
+            left: 16px;
+            top: 200px;
+            width: 160px;
+            z-index: 2500;
+        }
+        .left-rail-ad .box {
+            width: 160px;
+            height: 300px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.8);
+            background: rgba(0,0,0,0.35);
+        }
+
         .stake-rail .box {
             width: 160px;
             height: 600px;
@@ -478,10 +531,16 @@
         /* hide on smaller screens to avoid overlap */
         @media (max-width: 1280px) {
             .stake-rail { display: none; }
+            .left-rail-ad { display: none; }
         }
 
         /* hide in full-page mode */
         body.full-page-player .stake-rail { display: none; }
+        body.full-page-player .left-rail-ad { display: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .live-pill::before { animation: none !important; box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6); }
+        }
     </style>
 </head>
 
@@ -512,7 +571,12 @@
                 </div>
 
                 <div class="header-text">
-                    <h1>{{ game.matchup }}</h1>
+                    <div class="title-row">
+                        <h1>{{ game.matchup }}</h1>
+                        {% if game.is_live %}
+                            <span class="live-pill" aria-label="Live now">LIVE</span>
+                        {% endif %}
+                    </div>
                     <h2>{{ game.sport }}</h2>
 
                     <div class="meta">
@@ -540,26 +604,16 @@
                                    href="{{ share_slug_url }}"
                                    target="_blank" rel="noopener"
                                    title="{{ share_slug_url }}">
-                                    {% if short_slug %}
-                                        /g/{{ short_slug }}
-                                    {% else %}
-                                        /g/…
-                                    {% endif %}
+                                    Link 1
                                 </a>
 
                                 <a class="share-pill"
                                    href="{{ share_id_url }}"
                                    target="_blank" rel="noopener"
                                    title="{{ share_id_url }}">
-                                    /game/{{ game.id }}
+                                    Link 2
                                 </a>
                             </span>
-                        </div>
-
-                        <div class="support-note">
-                            Having issues with streams? Please contact
-                            <a href="https://x.com/thestreamden" target="_blank" rel="noopener">@TheStreamDen</a>
-                            on Twitter.
                         </div>
                     </div>
 
@@ -680,7 +734,29 @@
         {% endif %}
     </div>
 
+    <div class="support-note-floating">
+        Having issues with streams? <a href="https://x.com/thestreamden" target="_blank" rel="noopener">@TheStreamDen</a>
+    </div>
+
     <!-- ✅ FIXED banner OUTSIDE .page-wrapper so it never changes layout -->
+    <div class="left-rail-ad" aria-label="Left rail ad">
+        <div class="box">
+            <script type="text/javascript">
+              atOptions = {
+                'key' : '29ef845582924216c628b8930841e3bb',
+                'format' : 'iframe',
+                'height' : 300,
+                'width' : 160,
+                'params' : {}
+              };
+            </script>
+            <script
+              type="text/javascript"
+              src="https://broodbelongminiature.com/29ef845582924216c628b8930841e3bb/invoke.js"
+            ></script>
+        </div>
+    </div>
+
     <div class="stake-rail" aria-label="Stake promo">
         <div class="box">
             <a href="https://stake.com/?c=thestreamden" target="_blank" rel="noopener noreferrer">

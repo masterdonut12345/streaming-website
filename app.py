@@ -8,7 +8,7 @@ import os
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import hashlib
 import re
@@ -70,7 +70,7 @@ def mark_active():
     if not ENABLE_VIEWER_TRACKING:
         return
     sid = get_session_id()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     ACTIVE_VIEWERS[sid] = now
 
     cutoff = now - timedelta(seconds=45)
@@ -88,7 +88,7 @@ def heartbeat():
         return jsonify({"ok": True, "disabled": True})
 
     sid = get_session_id()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     data = request.get_json(silent=True) or {}
     path = data.get("path") or request.path
@@ -134,6 +134,70 @@ SLUG_MULTI_DASH = re.compile(r"-{2,}")
 
 def safe_lower(value):
     return value.lower() if isinstance(value, str) else ""
+
+
+def normalize_sport_name(value):
+    """
+    Normalize sport values so grouping/sorting never mixes types.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+        return value or "Other"
+    try:
+        text = str(value).strip()
+        return text or "Other"
+    except Exception:
+        return "Other"
+
+
+INVALID_SPORT_MARKERS = {"other", "unknown", "nan", "n/a", "none", "null", ""}
+
+
+def sport_is_invalid(value) -> bool:
+    """Return True when the sport should be treated as unclassified."""
+    normalized = normalize_sport_name(value)
+    return normalized.lower() in INVALID_SPORT_MARKERS
+
+
+def coerce_start_datetime(rowd):
+    """
+    Try to produce a timezone-aware UTC datetime from available fields.
+    Returns None if no reliable timestamp is present.
+    """
+    # Prefer unix timestamp if present
+    ts = rowd.get("time_unix")
+    if ts not in (None, ""):
+        try:
+            ts_float = float(ts)
+            if not pd.isna(ts_float):
+                # detect ms vs seconds
+                if ts_float > 1e11:  # likely ms
+                    ts_float = ts_float / 1000.0
+                return datetime.fromtimestamp(ts_float, tz=timezone.utc)
+        except Exception:
+            pass
+
+    # fallback: parse "time" column
+    raw_time = rowd.get("time")
+    if isinstance(raw_time, str) and raw_time.strip():
+        try:
+            dt = pd.to_datetime(raw_time, utc=True, errors="coerce")
+            if isinstance(dt, pd.Timestamp) and not pd.isna(dt):
+                return dt.to_pydatetime()
+        except Exception:
+            return None
+
+    # final fallback: date_header only (assume start at midnight UTC)
+    date_header = rowd.get("date_header")
+    if isinstance(date_header, str) and date_header.strip():
+        try:
+            dt = pd.to_datetime(date_header, utc=True, errors="coerce")
+            if isinstance(dt, pd.Timestamp) and not pd.isna(dt):
+                return dt.to_pydatetime()
+        except Exception:
+            return None
+
+    return None
 
 
 def make_stable_id(row):
@@ -310,9 +374,94 @@ def _dedup_stream_slug(slug: str, seen: set) -> str:
 # ====================== FAST GAME LOADER (CACHED) ======================
 SPORT_MAP = {
     "Football": "Soccer",
-    "American Football": "NFL",
+    "Soccer": "Soccer",
+    "American Football": "American Football",
+    "NFL": "American Football",
+    "Basketball": "Basketball",
     "NBA": "Basketball",
+    "Tennis": "Tennis",
+    "Ice Hockey": "Ice Hockey",
+    "Hockey": "Ice Hockey",
+    "Rugby Union": "Rugby",
+    "Rugby": "Rugby",
+    "Handball": "Handball",
+    "Darts": "Darts",
+    "Boxing": "Boxing",
+    "Cricket": "Cricket",
+    "Volleyball": "Volleyball",
+    "Equestrian": "Equestrian",
 }
+
+SPORT_KEYWORD_MAP = [
+    ("nba", "Basketball"),
+    ("basketball", "Basketball"),
+    ("wnba", "Basketball"),
+    ("ncaa basketball", "Basketball"),
+    ("college basketball", "Basketball"),
+    ("nba g-league", "Basketball"),
+    ("nfl", "American Football"),
+    ("american football", "American Football"),
+    ("ncaa football", "College Football"),
+    ("college football", "College Football"),
+    ("mlb", "MLB"),
+    ("baseball", "MLB"),
+    ("nhl", "Ice Hockey"),
+    ("hockey", "Ice Hockey"),
+    ("ice hockey", "Ice Hockey"),
+    ("pwhl", "Ice Hockey"),
+    ("soccer", "Soccer"),
+    ("football", "Soccer"),
+    ("mls", "Soccer"),
+    ("premier league", "Soccer"),
+    ("la liga", "Soccer"),
+    ("bundesliga", "Soccer"),
+    ("serie a", "Soccer"),
+    ("ligue 1", "Soccer"),
+    ("champions league", "Soccer"),
+    ("uefa", "Soccer"),
+    ("ucl", "Soccer"),
+    ("africa cup of nations", "Soccer"),
+    ("copa", "Soccer"),
+    ("eredivisie", "Soccer"),
+    ("laliga", "Soccer"),
+    ("ligue 2", "Soccer"),
+    ("ufc", "MMA"),
+    ("mma", "MMA"),
+    ("bellator", "MMA"),
+    ("boxing", "Boxing"),
+    ("formula 1", "Motorsport"),
+    ("formula1", "Motorsport"),
+    ("f1", "Motorsport"),
+    ("f2", "Motorsport"),
+    ("nascar", "Motorsport"),
+    ("motogp", "Motorsport"),
+    ("tennis", "Tennis"),
+    ("atp", "Tennis"),
+    ("wta", "Tennis"),
+    ("golf", "Golf"),
+    ("pga", "Golf"),
+    ("lpga", "Golf"),
+    ("cricket", "Cricket"),
+    ("ashes", "Cricket"),
+    ("t20", "Cricket"),
+    ("bbl", "Cricket"),
+    ("big bash", "Cricket"),
+    ("international league t20", "Cricket"),
+    ("ilt20", "Cricket"),
+    ("test series", "Cricket"),
+    ("one day", "Cricket"),
+    ("odi", "Cricket"),
+    ("rugby", "Rugby"),
+    ("rugby union", "Rugby"),
+    ("top 14", "Rugby"),
+    ("premiership", "Rugby"),
+    ("handball", "Handball"),
+    ("volleyball", "Volleyball"),
+    ("darts", "Darts"),
+    ("equestrian", "Equestrian"),
+    ("curling", "Curling"),
+    ("horse racing", "Horse Racing"),
+]
 
 
 def _build_games_from_df(df: pd.DataFrame):
@@ -325,6 +474,9 @@ def _build_games_from_df(df: pd.DataFrame):
             df[col] = ""
 
     games = []
+    now_utc = datetime.now(timezone.utc)
+    stale_cutoff = now_utc - timedelta(hours=6)
+    live_window_after_start = timedelta(hours=5)  # typical game length coverage
 
     # Iterate rows once, parse streams once
     for _, row in df.iterrows():
@@ -340,7 +492,53 @@ def _build_games_from_df(df: pd.DataFrame):
         raw_sport = raw_sport.strip() if isinstance(raw_sport, str) else raw_sport
         sport = SPORT_MAP.get(raw_sport, raw_sport)
 
+        normalized_sport = sport.lower() if isinstance(sport, str) else ""
+        needs_infer = (
+            not normalized_sport
+            or normalized_sport in ("other", "unknown", "nan", "n/a", "none")
+        )
+
+        if needs_infer:
+            # infer from other fields to avoid "unknown" buckets
+            haystack_parts = [
+                rowd.get("sport", ""),
+                rowd.get("tournament", ""),
+                rowd.get("matchup", ""),
+                rowd.get("watch_url", ""),
+                rowd.get("source", ""),
+            ]
+            haystack = " ".join([str(p or "") for p in haystack_parts]).lower()
+            for keyword, mapped in SPORT_KEYWORD_MAP:
+                if keyword in haystack:
+                    sport = mapped
+                    break
+            # If still empty, try a broader heuristic: sport code in URL path segments
+            if not sport and "/" in haystack:
+                parts = [p for p in haystack.replace("-", " ").split("/") if p]
+                for keyword, mapped in SPORT_KEYWORD_MAP:
+                    if any(keyword in p for p in parts):
+                        sport = mapped
+                        break
+
+        # Normalize and drop entries we still can't classify
+        sport = normalize_sport_name(sport or "")
+        if sport.lower() in ("other", "unknown", "nan", "n/a", "none", "null", ""):
+            # Skip unclassified games to avoid "unknown" buckets entirely
+            continue
+
+        # Determine start time once for both filtering and live inference
+        start_dt = coerce_start_datetime(rowd)
+
+        # Skip streams that started >6 hours ago (based on best-effort timestamp)
+        if start_dt and start_dt < stale_cutoff:
+            continue
+
+        # Base live flag from data
         is_live = normalize_bool(rowd.get("is_live"))
+        if not is_live and start_dt:
+            # Auto-mark live if we're within a reasonable window of the start
+            if (start_dt - timedelta(minutes=15)) <= now_utc <= (start_dt + live_window_after_start):
+                is_live = True
 
         # format time once
         time_display = None
@@ -400,7 +598,12 @@ def load_games_cached():
             and (mtime == GAMES_CACHE["mtime"])
         )
         if cache_ok:
-            return GAMES_CACHE["games"]
+            cached_games = GAMES_CACHE["games"]
+            # If cached data still contains invalid sports, force a refresh
+            if any(sport_is_invalid(g.get("sport")) for g in cached_games):
+                cache_ok = False
+            else:
+                return cached_games
 
     # Refresh outside lock (avoid blocking concurrent requests)
     df = _read_csv_shared_locked(DATA_PATH)
@@ -419,7 +622,7 @@ def get_game_view_counts(cutoff_seconds=45):
     if not ENABLE_VIEWER_TRACKING:
         return {}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(seconds=cutoff_seconds)
     counts = {}
 
@@ -733,11 +936,13 @@ def index():
 
     sections_by_sport = {}
     for g in games:
-        sport = g.get("sport") or "Other"
+        sport = normalize_sport_name(g.get("sport"))
+        if sport_is_invalid(sport):
+            continue
         sections_by_sport.setdefault(sport, []).append(g)
 
     sections = [{"sport": s, "games": lst} for s, lst in sections_by_sport.items()]
-    sections.sort(key=lambda s: s["sport"])
+    sections.sort(key=lambda s: normalize_sport_name(s["sport"]).lower())
 
     most_viewed_games = get_most_viewed_games(all_games, limit=5)
 
