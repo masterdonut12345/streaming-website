@@ -564,9 +564,10 @@
             justify-content: space-between;
             gap: 8px;
             margin-bottom: 6px;
+            flex-wrap: wrap;
         }
 
-        .game-title { font-weight: 600; font-size: 1.02em; }
+        .game-title { font-weight: 600; font-size: 1.02em; flex: 1 1 auto; min-width: 0; }
         .game-title a { color: #e5e9ff; text-decoration: none; }
 
         .game-tags-row {
@@ -600,29 +601,38 @@
         .meta { font-size: 0.85rem; color: var(--muted); margin-top: 6px; line-height: 1.45; }
         .meta strong { color: #d0d0d0; font-weight: 500; }
 
-        .live-button {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            padding: 6px 10px;  /* ✅ bigger tap */
-            border-radius: 999px;
-            border: 1px solid rgba(255, 77, 106, 0.9);
-            background: rgba(255, 77, 106, 0.18);
-            color: #ffeef2;
+        .live-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            padding: 4px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 77, 106, 0.6);
+            background: rgba(255, 77, 106, 0.14);
+            color: #ffeef2;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 0.74rem;
+            font-weight: 700;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
             cursor: default;
-            min-height: 34px;
         }
 
-        .live-button::before {
+        .live-pill::before {
             content: "";
             width: 7px;
             height: 7px;
             border-radius: 999px;
             background: var(--live);
-            box-shadow: 0 0 8px rgba(255, 77, 106, 0.8);
+            box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6);
+            animation: livePulse 1.6s ease-out infinite;
+        }
+
+        @keyframes livePulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6); }
+            100% { box-shadow: 0 0 0 10px rgba(255, 77, 106, 0); }
         }
 
         a {
@@ -712,7 +722,15 @@
             -webkit-backdrop-filter: blur(10px);
         }
 
-        .mv-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+        .mv-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+
+        .mv-title { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; flex: 1 1 auto; min-width: 0; }
         .mv-meta { font-size: 0.78rem; color: #c7cffc; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .mv-viewers { font-size: 0.78rem; color: #ffdfe7; }
 
@@ -798,6 +816,7 @@
         /* ✅ Respect reduced motion */
         @media (prefers-reduced-motion: reduce) {
             * { transition: none !important; scroll-behavior: auto !important; }
+            .live-pill::before { animation: none !important; box-shadow: 0 0 0 0 rgba(255, 77, 106, 0.6); }
         }
     </style>
 </head>
@@ -977,7 +996,7 @@
                                             </a>
                                         </div>
                                         {% if game.is_live %}
-                                            <button class="live-button" type="button">LIVE</button>
+                                            <span class="live-pill" aria-label="Live now">LIVE</span>
                                         {% endif %}
                                     </div>
 
@@ -1047,7 +1066,12 @@
                 <div class="most-viewed-list">
                     {% for g in most_viewed_games %}
                         <a href="{{ url_for('game_detail', game_id=g.id) }}" class="mv-item">
-                            <div class="mv-title">{{ g.matchup }}</div>
+                            <div class="mv-title-row">
+                                <div class="mv-title">{{ g.matchup }}</div>
+                                {% if g.is_live %}
+                                    <span class="live-pill" aria-label="Live now">LIVE</span>
+                                {% endif %}
+                            </div>
                             <div class="mv-meta">
                                 {{ g.sport or 'Sport' }}{% if g.time %} • {{ g.time }}{% endif %}
                             </div>
