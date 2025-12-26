@@ -634,7 +634,9 @@ def main():
         ("sharkstreams", scrape_shark),
     ):
         try:
-            df = fn() or pd.DataFrame()
+            df = fn()
+            if df is None:
+                df = pd.DataFrame()
         except Exception as exc:
             print(f"[scraper][WARN] {source_name} scrape failed: {exc}")
             df = pd.DataFrame()
