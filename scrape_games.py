@@ -49,7 +49,15 @@ def _get_session():
         _SESSION = requests.Session()
         _SESSION.headers.update(HEADERS)
         # Retry a couple times on transient network errors (e.g., connection reset)
-        retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            status=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"],
+        )
         adapter = HTTPAdapter(max_retries=retry)
         _SESSION.mount("http://", adapter)
         _SESSION.mount("https://", adapter)
@@ -639,7 +647,16 @@ def main():
         print(f"[scraper] {source_name} returned {len(df)} games.")
 
     if not scraped_frames:
-        print("[scraper] No games found.")
+        existing_rows = 0
+        if os.path.exists(OUTPUT_FILE):
+            try:
+                existing_rows = len(pd.read_csv(OUTPUT_FILE))
+            except Exception:
+                existing_rows = 0
+        if existing_rows > 0:
+            print(f"[scraper] No new games found; keeping existing {existing_rows} rows.")
+            return
+        print("[scraper][ERROR] No games found and no existing data to preserve.")
         return
 
     df_new = pd.concat(scraped_frames, ignore_index=True)
