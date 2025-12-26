@@ -485,6 +485,13 @@ def _build_games_from_df(df: pd.DataFrame):
 
         # Parse streams (fast)
         streams = parse_streams_cell(rowd.get("streams"))
+        if (not streams) and isinstance(rowd.get("embed_url"), str) and rowd.get("embed_url").strip():
+            streams = [{
+                "label": "Stream",
+                "embed_url": rowd.get("embed_url").strip(),
+                "watch_url": rowd.get("watch_url") or rowd.get("embed_url"),
+                "origin": "fallback",
+            }]
 
         # stable id (fast)
         game_id = make_stable_id(rowd)
@@ -642,6 +649,12 @@ def _build_games_from_df(df: pd.DataFrame):
             except Exception:
                 time_display = None
 
+        embed_val = ""
+        if streams and isinstance(streams[0].get("embed_url"), str):
+            embed_val = streams[0].get("embed_url").strip()
+        elif isinstance(rowd.get("embed_url"), str):
+            embed_val = rowd.get("embed_url").strip()
+
         game_obj = {
             "id": game_id,
             "date_header": rowd.get("date_header"),
@@ -654,6 +667,7 @@ def _build_games_from_df(df: pd.DataFrame):
             "watch_url": rowd.get("watch_url"),
             "streams": streams,
             "is_live": is_live,
+            "embed_url": embed_val,
         }
 
         dedup_key = (
@@ -669,6 +683,8 @@ def _build_games_from_df(df: pd.DataFrame):
             existing["is_live"] = existing.get("is_live") or game_obj.get("is_live")
             if not existing.get("watch_url") and game_obj.get("watch_url"):
                 existing["watch_url"] = game_obj["watch_url"]
+            if not existing.get("embed_url") and game_obj.get("embed_url"):
+                existing["embed_url"] = game_obj["embed_url"]
             if not existing.get("tournament_url") and game_obj.get("tournament_url"):
                 existing["tournament_url"] = game_obj["tournament_url"]
             if not existing.get("time") and game_obj.get("time"):
