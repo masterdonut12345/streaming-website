@@ -31,7 +31,8 @@ from urllib3.util.retry import Retry
 
 # ---------------- CONFIG ----------------
 
-BASE_URL_SPORT71 = "https://sport7.pro"
+# The site is branded Sport71 and lives at sport71.pro (not sport7.pro)
+BASE_URL_SPORT71 = "https://sport71.pro"
 BASE_URL_SHARK   = "https://sharkstreams.net/"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StreamScraper/1.0)"}
 REQUEST_TIMEOUT = 8  # seconds
