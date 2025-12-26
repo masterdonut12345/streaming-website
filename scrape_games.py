@@ -3,8 +3,9 @@
 scrape_games.py
 
 FAST + SAFE scraper for:
-  - sport7.pro (Sport71): today + tomorrow, ALL embeds
-  - sharkstreams.net: today + next 7 days, 1 embed per game
+  - Streamed.pk Matches + Streams APIs (preferred, no HTML parsing)
+  - sport7.pro (Sport71): today + tomorrow, ALL embeds (legacy)
+  - sharkstreams.net: today + next 7 days, 1 embed per game (legacy)
 
 Guarantees:
   - Manual streams preserved
@@ -33,6 +34,9 @@ BASE_URL_SHARK   = "https://sharkstreams.net/"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; StreamScraper/1.0)"}
 REQUEST_TIMEOUT = 8  # seconds
 MAX_EXTRA_LINKS = 4  # cap per-game follow-up fetches
+STREAMED_API_BASE = os.environ.get("STREAMED_API_BASE", "https://streamed.pk")
+STREAMED_MATCHES_PATH = os.environ.get("STREAMED_MATCHES_PATH", "/api/matches/all-today")
+STREAMED_SPORTS_PATH = os.environ.get("STREAMED_SPORTS_PATH", "/api/sports")
 
 _SESSION = None
 
@@ -312,6 +316,118 @@ def _fetch_sport71_streams(watch_url: str, session) -> list[dict]:
     return deduped
 
 
+def _fetch_json(session, url: str):
+    try:
+        resp = session.get(url, timeout=REQUEST_TIMEOUT)
+        if resp.status_code != 200:
+            return None
+        return resp.json()
+    except Exception:
+        return None
+
+
+def _load_sports_map(session) -> dict:
+    sports = _fetch_json(session, urljoin(STREAMED_API_BASE, STREAMED_SPORTS_PATH)) or []
+    return {
+        (s.get("id") or "").strip(): (s.get("name") or s.get("id") or "").strip()
+        for s in sports
+        if isinstance(s, dict)
+    }
+
+
+def _build_stream_label(stream: dict) -> str:
+    base = f"Stream {stream.get('streamNo')}" if stream.get("streamNo") else "Stream"
+    extras = []
+    lang = (stream.get("language") or "").strip()
+    if lang:
+        extras.append(lang)
+    if stream.get("hd"):
+        extras.append("HD")
+    if extras:
+        return f"{base} ({' - '.join(extras)})"
+    return base
+
+
+def _fetch_streams_for_source(session, source: str, source_id: str) -> list[dict]:
+    if not source or not source_id:
+        return []
+    api_url = urljoin(STREAMED_API_BASE, f"/api/stream/{source}/{source_id}")
+    payload = _fetch_json(session, api_url) or []
+    streams: list[dict] = []
+    for st in payload:
+        if not isinstance(st, dict):
+            continue
+        embed = (st.get("embedUrl") or "").strip()
+        if not embed:
+            continue
+        streams.append({
+            "label": _build_stream_label(st),
+            "embed_url": embed,
+            "watch_url": embed,
+            "origin": "api",
+            "language": st.get("language"),
+            "hd": bool(st.get("hd")),
+            "source": st.get("source"),
+        })
+    return streams
+
+
+def scrape_streamed_api() -> pd.DataFrame:
+    """
+    Fetch matches + streams directly from the Streamed.pk API instead of parsing HTML.
+    """
+    session = _get_session()
+    sports_map = _load_sports_map(session)
+    matches_url = urljoin(STREAMED_API_BASE, STREAMED_MATCHES_PATH)
+    matches = _fetch_json(session, matches_url)
+    if not matches:
+        return pd.DataFrame()
+
+    rows = []
+    now_utc = datetime.now(UTC)
+
+    for match in matches:
+        if not isinstance(match, dict):
+            continue
+        try:
+            ts_ms = int(match.get("date"))
+        except Exception:
+            continue
+
+        event_dt = datetime.fromtimestamp(ts_ms / 1000, tz=UTC).astimezone(EST)
+        # keep today + a small lookahead (similar to sport71 behavior)
+        if not _within_days(event_dt, days_ahead=1, days_behind=0):
+            continue
+
+        sources = match.get("sources") or []
+        streams: list[dict] = []
+        for src in sources:
+            if not isinstance(src, dict):
+                continue
+            streams.extend(_fetch_streams_for_source(session, src.get("source"), src.get("id")))
+        streams = _dedup_streams(streams)
+
+        sport_id = match.get("category") or ""
+        sport = sports_map.get(sport_id, sport_id.title() if isinstance(sport_id, str) else "Other")
+
+        rows.append({
+            "source": "streamed.pk",
+            "date_header": event_dt.strftime("%A, %B %d, %Y"),
+            "sport": sport,
+            "time_unix": ts_ms,
+            "time": event_dt,
+            "tournament": None,
+            "tournament_url": None,
+            "matchup": match.get("title") or "Unknown match",
+            "watch_url": streams[0]["watch_url"] if streams else None,
+            "streams": streams,
+            "embed_url": streams[0]["embed_url"] if streams else None,
+            "is_live": (event_dt - timedelta(minutes=15)) <= now_utc <= (event_dt + timedelta(hours=5)),
+        })
+
+    return pd.DataFrame(rows)
+
+
 def scrape_sport71() -> pd.DataFrame:
     session = _get_session()
     r = session.get(BASE_URL_SPORT71, timeout=REQUEST_TIMEOUT)
@@ -482,10 +598,7 @@ def merge_streams(new, old):
     return _dedup_streams(manual + scraped)
 
 def main():
-    df_new = pd.concat([
-        scrape_sport71(),
-        scrape_shark()
-    ], ignore_index=True)
+    df_new = scrape_streamed_api()
 
     if df_new.empty:
         print("[scraper] No games found.")

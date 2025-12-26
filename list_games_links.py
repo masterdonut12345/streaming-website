@@ -151,8 +151,7 @@ def make_stable_id(row: Dict[str, Any]) -> int:
 
 def collect_games_from_scrapers() -> List[Dict[str, Any]]:
     dfs = [
-        scrape_games.scrape_sport71(),
-        scrape_games.scrape_shark(),
+        scrape_games.scrape_streamed_api(),
     ]
 
     games: Dict[int, Dict[str, Any]] = {}
