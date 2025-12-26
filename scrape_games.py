@@ -39,6 +39,7 @@ MAX_EXTRA_LINKS = 4  # cap per-game follow-up fetches
 STREAMED_API_BASE = os.environ.get("STREAMED_API_BASE", "https://streamed.pk")
 STREAMED_MATCHES_PATH = os.environ.get("STREAMED_MATCHES_PATH", "/api/matches/all-today")
 STREAMED_SPORTS_PATH = os.environ.get("STREAMED_SPORTS_PATH", "/api/sports")
+SPORT71_DAYS_AHEAD = int(os.environ.get("SPORT71_DAYS_AHEAD", "3"))
 
 _SESSION = None
 
@@ -456,6 +457,7 @@ def scrape_sport71() -> pd.DataFrame:
         print(f"[scraper][WARN] sport7.pro fetch failed: {exc}")
         return pd.DataFrame()
     if r.status_code != 200:
+        print(f"[scraper][WARN] sport7.pro returned HTTP {r.status_code}")
         return pd.DataFrame()
 
     soup = BeautifulSoup(r.text, "html.parser")
@@ -464,6 +466,7 @@ def scrape_sport71() -> pd.DataFrame:
         return pd.DataFrame()
 
     rows = []
+    skipped_by_window = 0
 
     for tr in section.select("tbody tr"):
         tds = tr.find_all("td")
@@ -480,7 +483,8 @@ def scrape_sport71() -> pd.DataFrame:
         except Exception:
             continue
 
-        if not _within_days(event_dt, days_ahead=1):
+        if not _within_days(event_dt, days_ahead=SPORT71_DAYS_AHEAD):
+            skipped_by_window += 1
             continue
 
         watch_a = tds[2].find("a", class_="watch-button")
@@ -505,6 +509,8 @@ def scrape_sport71() -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     if df.empty:
+        if skipped_by_window:
+            print(f"[scraper][INFO] sport7.pro skipped {skipped_by_window} events outside window (days_ahead={SPORT71_DAYS_AHEAD})")
         return df
 
     # Fetch embeds (main page + per-stream links)
