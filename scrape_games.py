@@ -26,6 +26,8 @@ import ast
 import os
 import fcntl
 import hashlib
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ---------------- CONFIG ----------------
 
@@ -46,6 +48,19 @@ def _get_session():
     if _SESSION is None:
         _SESSION = requests.Session()
         _SESSION.headers.update(HEADERS)
+        # Retry a couple times on transient network errors (e.g., connection reset)
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            status=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"],
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        _SESSION.mount("http://", adapter)
+        _SESSION.mount("https://", adapter)
     return _SESSION
 
 EST = pytz.timezone("US/Eastern")
@@ -322,7 +337,8 @@ def _fetch_json(session, url: str):
         if resp.status_code != 200:
             return None
         return resp.json()
-    except Exception:
+    except Exception as exc:
+        print(f"[scraper][WARN] Failed to fetch JSON from {url}: {exc}")
         return None
 
 
@@ -377,9 +393,13 @@ def scrape_streamed_api() -> pd.DataFrame:
     Fetch matches + streams directly from the Streamed.pk API instead of parsing HTML.
     """
     session = _get_session()
-    sports_map = _load_sports_map(session)
-    matches_url = urljoin(STREAMED_API_BASE, STREAMED_MATCHES_PATH)
-    matches = _fetch_json(session, matches_url)
+    try:
+        sports_map = _load_sports_map(session)
+        matches_url = urljoin(STREAMED_API_BASE, STREAMED_MATCHES_PATH)
+        matches = _fetch_json(session, matches_url)
+    except Exception as exc:
+        print(f"[scraper][WARN] Streamed.pk API failed: {exc}")
+        return pd.DataFrame()
     if not matches:
         return pd.DataFrame()
 
@@ -430,7 +450,11 @@ def scrape_streamed_api() -> pd.DataFrame:
 
 def scrape_sport71() -> pd.DataFrame:
     session = _get_session()
-    r = session.get(BASE_URL_SPORT71, timeout=REQUEST_TIMEOUT)
+    try:
+        r = session.get(BASE_URL_SPORT71, timeout=REQUEST_TIMEOUT)
+    except Exception as exc:
+        print(f"[scraper][WARN] sport7.pro fetch failed: {exc}")
+        return pd.DataFrame()
     if r.status_code != 200:
         return pd.DataFrame()
 
@@ -502,7 +526,11 @@ _HREF_URL_RE = re.compile(r"https?://[^\\s\"']+", re.I)
 
 def scrape_shark() -> pd.DataFrame:
     session = _get_session()
-    r = session.get(BASE_URL_SHARK, timeout=REQUEST_TIMEOUT)
+    try:
+        r = session.get(BASE_URL_SHARK, timeout=REQUEST_TIMEOUT)
+    except Exception as exc:
+        print(f"[scraper][WARN] sharkstreams fetch failed: {exc}")
+        return pd.DataFrame()
     if r.status_code != 200:
         return pd.DataFrame()
 
@@ -598,11 +626,40 @@ def merge_streams(new, old):
     return _dedup_streams(manual + scraped)
 
 def main():
-    df_new = scrape_streamed_api()
+    scraped_frames = []
 
-    if df_new.empty:
-        print("[scraper] No games found.")
+    for source_name, fn in (
+        ("streamed.pk", scrape_streamed_api),
+        ("sport71", scrape_sport71),
+        ("sharkstreams", scrape_shark),
+    ):
+        try:
+            df = fn() or pd.DataFrame()
+        except Exception as exc:
+            print(f"[scraper][WARN] {source_name} scrape failed: {exc}")
+            df = pd.DataFrame()
+
+        if df.empty:
+            print(f"[scraper] {source_name} returned 0 games.")
+            continue
+
+        scraped_frames.append(df)
+        print(f"[scraper] {source_name} returned {len(df)} games.")
+
+    if not scraped_frames:
+        existing_rows = 0
+        if os.path.exists(OUTPUT_FILE):
+            try:
+                existing_rows = len(pd.read_csv(OUTPUT_FILE))
+            except Exception:
+                existing_rows = 0
+        if existing_rows > 0:
+            print(f"[scraper] No new games found; keeping existing {existing_rows} rows.")
+            return
+        print("[scraper][ERROR] No games found and no existing data to preserve.")
         return
+
+    df_new = pd.concat(scraped_frames, ignore_index=True)
 
     if not os.path.exists(OUTPUT_FILE):
         pd.DataFrame(columns=CSV_COLS).to_csv(OUTPUT_FILE, index=False)
